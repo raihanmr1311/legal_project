@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Upload Excel Laporan</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background: #f8f9fa; }
+        .upload-card {
+            background: #fff;
+            border-radius: 18px;
+            box-shadow: 0 3px 20px rgba(0,0,0,0.07);
+            padding: 2.5rem 2rem 2rem 2rem;
+            margin-top: 5rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-md-6">
+                <div class="upload-card">
+                    <h2 class="text-center mb-4">Upload Excel Laporan</h2>
+                    <form id="uploadForm" enctype="multipart/form-data">
+                        <div class="mb-3">
+                            <input type="file" class="form-control" id="excelFile" name="excelFile" accept=".xlsx,.xls" required>
+                        </div>
+                        <button type="submit" class="btn btn-success w-100">Upload</button>
+                        <div id="uploadMsg" class="text-center mt-3"></div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script>
+    document.getElementById('uploadForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const formData = new FormData();
+        formData.append('excelFile', document.getElementById('excelFile').files[0]);
+        const res = await fetch('/api/upload-excel', {
+            method: 'POST',
+            body: formData
+        });
+        const data = await res.json();
+        const msg = document.getElementById('uploadMsg');
+        if(data.success) {
+            msg.textContent = 'Upload & import berhasil!';
+            msg.className = 'text-success text-center mt-3';
+        } else {
+            msg.textContent = data.message || 'Upload gagal';
+            msg.className = 'text-danger text-center mt-3';
+        }
+    });
+    </script>
+</body>
+</html>
