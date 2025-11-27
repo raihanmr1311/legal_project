@@ -13,7 +13,7 @@ const bcrypt = require('bcryptjs');
 require('./reminderScheduler');
 
 const app = express();
-const PORT = 3001;
+const PORT = process.env.PORT ? Number(process.env.PORT) : 3001;
 const storage = multer.diskStorage({
     destination: function (req, file, cb) {
         cb(null, 'uploads/');
