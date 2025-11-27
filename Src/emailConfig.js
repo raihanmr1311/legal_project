@@ -1,15 +1,21 @@
 // Konfigurasi email untuk pengiriman notifikasi
-// Ganti sesuai data SMTP Anda
+// Membaca dari environment variables agar aman untuk deployment
+function parseAdminEmails(v) {
+  if (!v) return [];
+  v = String(v).trim();
+  if (v.startsWith('[')) {
+    try { return JSON.parse(v); } catch (e) { /* fallthrough */ }
+  }
+  return v.split(',').map(s => s.trim()).filter(Boolean);
+}
+
 module.exports = {
-  host: 'smtp.gmail.com',
-  port: 465,
-  secure: true,
+  host: process.env.EMAIL_HOST || 'smtp.gmail.com',
+  port: process.env.EMAIL_PORT ? Number(process.env.EMAIL_PORT) : 465,
+  secure: (process.env.EMAIL_SECURE || 'true').toString().toLowerCase() === 'true',
   auth: {
-    user: 'edwardpayaka@gmail.com', // ganti dengan email admin
-    pass: 'efasnfhelifcpmeo' // gunakan app password, bukan password biasa
+    user: process.env.EMAIL_USER || '',
+    pass: process.env.EMAIL_PASS || ''
   },
-  adminEmails: [
-    'peyekslurd@gmail.com',
-    'admin2@gmail.com'
-  ]
+  adminEmails: parseAdminEmails(process.env.ADMIN_EMAILS || '')
 };
