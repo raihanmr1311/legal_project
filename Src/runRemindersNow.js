@@ -17,6 +17,7 @@ const transporterOptions = {
 if (process.env.EMAIL_TLS_REJECT_UNAUTHORIZED && process.env.EMAIL_TLS_REJECT_UNAUTHORIZED.toLowerCase() === 'false') {
   transporterOptions.tls = { rejectUnauthorized: false };
 }
+
 const transporter = nodemailer.createTransport(transporterOptions);
 
 function getRemindTypeAndField(tenggat) {
@@ -51,40 +52,49 @@ async function sendReminderEmail(to, subject, text) {
 }
 
 async function runOnce() {
-  db.query('SELECT * FROM laporan LIMIT 50', async (err, results) => {
-    if (err) {
-      console.error('Failed to fetch laporan:', err && err.message ? err.message : err);
-      process.exit(1);
-    }
-    for (const lap of results) {
-      const remind = getRemindTypeAndField(lap.tanggal_pelaporan);
-      if (!remind) continue;
-      if (lap[remind.field]) continue;
-      const emails = [lap.email, ...(emailConfig.adminEmails || [])].filter(Boolean);
-      let subject = `Manual test reminder for laporan ${lap.id}`;
-      let text = `Ini adalah tes manual reminder untuk laporan id=${lap.id} tanggal_pelaporan=${lap.tanggal_pelaporan}`;
-      let anySuccess = false;
-      for (const to of emails) {
-        const r = await sendReminderEmail(to, subject, text);
-        if (r.ok) anySuccess = true;
+  // Verify transporter first
+  try {
+    await transporter.verify();
+    if (EMAIL_DEBUG) console.log('SMTP verified — proceeding with reminder check');
+  } catch (err) {
+    console.error('SMTP verification failed — aborting runRemindersNow:', err && err.message ? err.message : err);
+    if (EMAIL_DEBUG) console.error(util.inspect(err, { depth: 5 }));
+    throw err;
+  }
+
+  return new Promise((resolve, reject) => {
+    db.query('SELECT * FROM laporan LIMIT 50', async (err, results) => {
+      if (err) {
+        console.error('Failed to fetch laporan:', err && err.message ? err.message : err);
+        return reject(err);
       }
-      if (anySuccess) {
-        console.log('At least one recipient accepted for laporan', lap.id);
-      } else {
-        console.warn('No recipient accepted for laporan', lap.id);
+      for (const lap of results) {
+        const remind = getRemindTypeAndField(lap.tanggal_pelaporan);
+        if (!remind) continue;
+        if (lap[remind.field]) continue;
+        const emails = [lap.email, ...(emailConfig.adminEmails || [])].filter(Boolean);
+        let subject = `Manual test reminder for laporan ${lap.id}`;
+        let text = `Ini adalah tes manual reminder untuk laporan id=${lap.id} tanggal_pelaporan=${lap.tanggal_pelaporan}`;
+        let anySuccess = false;
+        for (const to of emails) {
+          const r = await sendReminderEmail(to, subject, text);
+          if (r.ok) anySuccess = true;
+        }
+        if (anySuccess) {
+          console.log('At least one recipient accepted for laporan', lap.id);
+        } else {
+          console.warn('No recipient accepted for laporan', lap.id);
+        }
       }
-    }
-    console.log('runRemindersNow finished');
-    process.exit(0);
+      console.log('runRemindersNow finished');
+      resolve();
+    });
   });
 }
 
-// verify transporter first
-transporter.verify().then(() => {
-  console.log('SMTP verified — running reminder check now');
-  runOnce();
-}).catch(err => {
-  console.error('SMTP verification failed — aborting runRemindersNow:', err && err.message ? err.message : err);
-  if (EMAIL_DEBUG) console.error(util.inspect(err, { depth: 5 }));
-  process.exit(1);
-});
+module.exports = { runOnce };
+
+// If run directly, execute and exit with appropriate code
+if (require.main === module) {
+  runOnce().then(() => process.exit(0)).catch(() => process.exit(1));
+}

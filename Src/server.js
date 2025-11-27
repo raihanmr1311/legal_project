@@ -30,6 +30,15 @@ app.use(bodyParser.json());
 const formRouter = require('./form');
 app.use('/api', formRouter);
 
+// Import runner so we can expose a secure endpoint to trigger reminders from deployed server
+let runRemindersNow;
+try {
+    runRemindersNow = require('./runRemindersNow').runOnce;
+} catch (e) {
+    // If the file isn't present or has errors, we still want server to start
+    console.warn('runRemindersNow not available:', e && e.message ? e.message : e);
+}
+
 
 
 // Endpoint upload Excel dan import ke database
@@ -150,6 +159,22 @@ app.get('/favicon.ico', (req, res) => {
 // Health check endpoint
 app.get('/health', (req, res) => {
     res.send('OK');
+});
+
+// Secure endpoint to trigger reminder runner from deployed server.
+// Protect with RUN_REMINDER_TOKEN env var: set `RUN_REMINDER_TOKEN` in Railway and call with header `x-run-token: <token>` or JSON body `{ "token": "<token>" }`.
+app.post('/api/run-reminders-now', async (req, res) => {
+    if (!runRemindersNow) return res.status(500).json({ success: false, message: 'Reminder runner not available' });
+    const token = req.headers['x-run-token'] || req.body && req.body.token;
+    if (!process.env.RUN_REMINDER_TOKEN) return res.status(500).json({ success: false, message: 'RUN_REMINDER_TOKEN not configured on server' });
+    if (!token || token !== process.env.RUN_REMINDER_TOKEN) return res.status(403).json({ success: false, message: 'Invalid token' });
+    try {
+        await runRemindersNow();
+        return res.json({ success: true, message: 'Reminder runner executed' });
+    } catch (err) {
+        console.error('Error running reminders via endpoint:', err && err.message ? err.message : err);
+        return res.status(500).json({ success: false, message: 'Runner failed', error: err && err.message ? err.message : String(err) });
+    }
 });
 
 // Redirect root ke main.html
