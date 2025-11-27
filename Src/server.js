@@ -177,6 +177,23 @@ app.post('/api/run-reminders-now', async (req, res) => {
     }
 });
 
+// Endpoint to send all reminder types for a single laporan by id (protected)
+const reminderScheduler = require('./reminderScheduler');
+app.post('/api/send-reminders-for/:id', async (req, res) => {
+    const token = req.headers['x-run-token'] || req.body && req.body.token;
+    if (!process.env.RUN_REMINDER_TOKEN) return res.status(500).json({ success: false, message: 'RUN_REMINDER_TOKEN not configured on server' });
+    if (!token || token !== process.env.RUN_REMINDER_TOKEN) return res.status(403).json({ success: false, message: 'Invalid token' });
+    const id = req.params.id;
+    const mark = req.body && typeof req.body.markRemindersAsSent !== 'undefined' ? Boolean(req.body.markRemindersAsSent) : true;
+    try {
+        const result = await reminderScheduler.sendAllRemindersForId(id, mark);
+        res.json({ success: true, result });
+    } catch (err) {
+        console.error('Error sending reminders for id', id, err && err.message ? err.message : err);
+        res.status(500).json({ success: false, message: 'Failed to send reminders', error: err && err.message ? err.message : String(err) });
+    }
+});
+
 // Redirect root ke main.html
 app.get('/', (req, res) => {
     res.redirect('/main.html');
@@ -184,4 +201,18 @@ app.get('/', (req, res) => {
 app.listen(PORT, () => {
     console.log(`Dashboard running at http://localhost:${PORT}`);
     console.log(`Export Excel: http://localhost:${PORT}/export-xlsx`);
+});
+
+// Endpoint to run all pending reminders now (protected)
+app.post('/api/run-reminders-pending', async (req, res) => {
+    const token = req.headers['x-run-token'] || req.body && req.body.token;
+    if (!process.env.RUN_REMINDER_TOKEN) return res.status(500).json({ success: false, message: 'RUN_REMINDER_TOKEN not configured on server' });
+    if (!token || token !== process.env.RUN_REMINDER_TOKEN) return res.status(403).json({ success: false, message: 'Invalid token' });
+    try {
+        const result = await reminderScheduler.runPendingRemindersNow();
+        res.json({ success: true, result });
+    } catch (err) {
+        console.error('Error running pending reminders:', err && err.message ? err.message : err);
+        res.status(500).json({ success: false, message: 'Failed to run pending reminders', error: err && err.message ? err.message : String(err) });
+    }
 });
