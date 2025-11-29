@@ -38,37 +38,68 @@ router.post('/upload-file', (req, res) => {
         if (err) {
             return res.json({ success: false, message: 'Gagal menyimpan ke database', error: err });
         }
-        // Kirim email notifikasi ke admin dan user
-        try {
-            const transporter = nodemailer.createTransport({
-                host: emailConfig.host,
-                port: emailConfig.port,
-                secure: emailConfig.secure,
-                auth: emailConfig.auth
-            });
-            const adminSubject = 'Laporan Baru Telah Diinput';
-            const adminText = `Notifikasi: Ada laporan baru yang telah diinput oleh ${pj} (email: ${email}).\n\nNama Laporan: ${nama_laporan}\nPeriode: ${periode_laporan}\nTahun: ${tahun_pelaporan}\nInstansi Tujuan: ${instansi_tujuan}\nTanggal Tenggat: ${tanggal_pelaporan}`;
-            const userSubject = 'Reminder Tenggat Waktu Pelaporan';
-            const userText = `Reminder: Tenggat waktu untuk pelaporan Anda adalah pada tanggal ${tanggal_pelaporan}.\n\nPastikan Anda melakukan pelaporan sebelum tenggat waktu tersebut.\n\nDetail Laporan:\nNama Laporan: ${nama_laporan}\nPeriode: ${periode_laporan}\nTahun: ${tahun_pelaporan}\nInstansi Tujuan: ${instansi_tujuan}`;
-            // Kirim ke admin
-            await transporter.sendMail({
-                from: emailConfig.auth.user,
-                to: emailConfig.adminEmails,
-                subject: adminSubject,
-                text: adminText
-            });
-            // Kirim ke user
-            await transporter.sendMail({
-                from: emailConfig.auth.user,
-                to: email,
-                subject: userSubject,
-                text: userText
-            });
-        } catch (mailErr) {
-            // Email gagal, tapi data tetap tersimpan
-            return res.json({ success: true, message: 'Data tersimpan, tapi email gagal dikirim', error: mailErr });
-        }
+        // Kembalikan respons ke client segera setelah data tersimpan
         res.json({ success: true });
+
+        // Kirim email notifikasi ke admin dan user di background.
+        // Tambahkan timeout dan logging agar tidak membuat request client 'pending'.
+        (async () => {
+            try {
+                const transporterOpts = {
+                    host: emailConfig.host,
+                    port: emailConfig.port,
+                    secure: emailConfig.secure,
+                    auth: emailConfig.auth,
+                    // Timeouts agar tidak menggantung saat SMTP unreachable
+                    connectionTimeout: 10000,
+                    greetingTimeout: 5000,
+                    socketTimeout: 10000
+                };
+                if (process.env.EMAIL_TLS_REJECT_UNAUTHORIZED && process.env.EMAIL_TLS_REJECT_UNAUTHORIZED.toLowerCase() === 'false') {
+                    transporterOpts.tls = { rejectUnauthorized: false };
+                }
+                const transporter = nodemailer.createTransport(transporterOpts);
+
+                const adminSubject = 'Laporan Baru Telah Diinput';
+                const adminText = `Notifikasi: Ada laporan baru yang telah diinput oleh ${pj} (email: ${email}).\n\nNama Laporan: ${nama_laporan}\nPeriode: ${periode_laporan}\nTahun: ${tahun_pelaporan}\nInstansi Tujuan: ${instansi_tujuan}\nTanggal Tenggat: ${tanggal_pelaporan}`;
+                const userSubject = 'Reminder Tenggat Waktu Pelaporan';
+                const userText = `Reminder: Tenggat waktu untuk pelaporan Anda adalah pada tanggal ${tanggal_pelaporan}.\n\nPastikan Anda melakukan pelaporan sebelum tenggat waktu tersebut.\n\nDetail Laporan:\nNama Laporan: ${nama_laporan}\nPeriode: ${periode_laporan}\nTahun: ${tahun_pelaporan}\nInstansi Tujuan: ${instansi_tujuan}`;
+
+                const adminPromise = (async () => {
+                    try {
+                        if (emailConfig.adminEmails && emailConfig.adminEmails.length) {
+                            await transporter.sendMail({
+                                from: emailConfig.auth.user,
+                                to: emailConfig.adminEmails,
+                                subject: adminSubject,
+                                text: adminText
+                            });
+                        }
+                    } catch (e) {
+                        console.error('Failed to send admin notification email:', e && e.message ? e.message : e);
+                    }
+                })();
+
+                const userPromise = (async () => {
+                    try {
+                        if (email) {
+                            await transporter.sendMail({
+                                from: emailConfig.auth.user,
+                                to: email,
+                                subject: userSubject,
+                                text: userText
+                            });
+                        }
+                    } catch (e) {
+                        console.error('Failed to send user notification email:', e && e.message ? e.message : e);
+                    }
+                })();
+
+                await Promise.allSettled([adminPromise, userPromise]);
+            } catch (err) {
+                console.error('Unhandled error while sending notification emails:', err && err.message ? err.message : err);
+            }
+        })();
     });
 });
 
