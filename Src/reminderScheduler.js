@@ -2,7 +2,7 @@
 const db = require('./db');
 const nodemailer = require('nodemailer');
 const emailConfig = require('./emailConfig');
-const mailProvider = require('./mailProvider');
+// mailProvider removed: use transporter.sendMail directly
 const cron = require('node-cron');
 const util = require('util');
 
@@ -33,14 +33,14 @@ transporter.verify().then(() => {
 
 async function sendReminderEmail(to, subject, text) {
     try {
-        const result = await mailProvider.sendMail({ to, subject, text, transporter });
-        if (result.ok) {
-            if (EMAIL_DEBUG) console.log('sendMail success:', to, result.provider, result.info && result.info.length ? result.info[0].headers : result.info);
-            return { ok: true, info: result.info };
-        }
-        console.error(`Failed to send reminder to ${to}:`, result.error && result.error.message ? result.error.message : result.error);
-        if (EMAIL_DEBUG) console.error(util.inspect(result, { depth: 5 }));
-        return { ok: false, error: result.error };
+        const info = await transporter.sendMail({
+            from: emailConfig.auth.user,
+            to,
+            subject,
+            text
+        });
+        if (EMAIL_DEBUG) console.log('sendMail success:', to, info && (info.messageId || info.response));
+        return { ok: true, info };
     } catch (err) {
         console.error(`Failed to send reminder to ${to}:`, err && err.message ? err.message : err);
         if (EMAIL_DEBUG) console.error(util.inspect(err, { depth: 5 }));
