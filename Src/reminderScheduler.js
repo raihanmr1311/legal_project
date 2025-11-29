@@ -95,13 +95,16 @@ cron.schedule('06 11 * * *', async () => {
                     if (transporter) {
                         for (const to of emails) {
                             try {
+                                console.log('Reminder: sending to', to, 'subject:', subject);
                                 const info = await transporter.sendMail({ from: emailConfig.auth.user, to, subject, text });
-                                if (EMAIL_DEBUG) console.log('sendMail success for', to, info && (info.messageId || info.response));
+                                console.log('Reminder sendMail result for', to, { messageId: info && info.messageId, response: info && info.response });
                                 anySuccess = true;
                             } catch (sendErr) {
                                 console.error('Failed to send reminder to', to, sendErr && sendErr.message ? sendErr.message : sendErr);
                             }
                         }
+                    } else {
+                        console.warn('No transporter available for reminder send for laporan id=', laporan.id);
                     }
 
                     if (anySuccess) {
@@ -159,8 +162,10 @@ async function sendAllRemindersForId(id, markAsSent = true) {
                             continue;
                         }
                         try {
+                            console.log('sendAllRemindersForId: sending', r.subject, 'to', to);
                             const info = await transporter.sendMail({ from: emailConfig.auth.user, to, subject: r.subject, text });
                             anySuccess = true;
+                            console.log('sendAllRemindersForId: send result for', to, { messageId: info && info.messageId, response: info && info.response });
                             results.push({ to, field: r.field, ok: true, info });
                         } catch (sendErr) {
                             results.push({ to, field: r.field, ok: false, error: sendErr && sendErr.message ? sendErr.message : sendErr });

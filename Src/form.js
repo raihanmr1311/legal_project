@@ -44,6 +44,7 @@ router.post('/upload-file', (req, res) => {
                 let transporter;
                 try {
                     transporter = await createAndVerifyTransporter();
+                    console.log('Background email: transporter available =', !!transporter);
                 } catch (e) {
                     console.error('Failed to verify SMTP transporter for background email:', e && e.message ? e.message : e);
                     transporter = null;
@@ -57,12 +58,16 @@ router.post('/upload-file', (req, res) => {
                 const adminPromise = (async () => {
                     try {
                         if (transporter && emailConfig.adminEmails && emailConfig.adminEmails.length) {
-                            await transporter.sendMail({
+                            console.log('Sending admin notification to', emailConfig.adminEmails);
+                            const info = await transporter.sendMail({
                                 from: emailConfig.auth.user,
                                 to: emailConfig.adminEmails,
                                 subject: adminSubject,
                                 text: adminText
                             });
+                            console.log('Admin sendMail result:', { messageId: info && info.messageId, response: info && info.response });
+                        } else {
+                            console.log('Admin notification skipped (no transporter or no admin emails)');
                         }
                     } catch (e) {
                         console.error('Failed to send admin notification email:', e && e.message ? e.message : e);
@@ -72,12 +77,16 @@ router.post('/upload-file', (req, res) => {
                 const userPromise = (async () => {
                     try {
                         if (transporter && email) {
-                            await transporter.sendMail({
+                            console.log('Sending user notification to', email);
+                            const info = await transporter.sendMail({
                                 from: emailConfig.auth.user,
                                 to: email,
                                 subject: userSubject,
                                 text: userText
                             });
+                            console.log('User sendMail result:', { messageId: info && info.messageId, response: info && info.response });
+                        } else {
+                            console.log('User notification skipped (no transporter or no user email)');
                         }
                     } catch (e) {
                         console.error('Failed to send user notification email:', e && e.message ? e.message : e);
