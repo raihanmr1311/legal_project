@@ -1,4 +1,3 @@
-// Handler tombol Tambah Laporan (login check konsisten)
 document.addEventListener('DOMContentLoaded', function() {
     var tambahBtn = document.getElementById('tambahLaporanBtn');
     if (tambahBtn) {
@@ -54,7 +53,6 @@ function renderTable(data) {
     });
 }
 
-    // Lihat detail laporan dalam modal
     globalThis.detailLaporan = function(idx) {
     const laporan = filteredData[idx];
     if (!laporan) return;
@@ -72,7 +70,6 @@ function renderTable(data) {
     modal.show();
 }
 
-// Edit laporan dalam modal
 globalThis.editLaporan = function(idx) {
     if (!isLoggedIn()) {
         showLoginModal(function() {
@@ -91,12 +88,11 @@ globalThis.editLaporan = function(idx) {
     html += '<div class="mb-2"><label class="form-label">Periode Laporan</label><input type="text" class="form-control" name="periode_laporan" value="' + (laporan['Periode Laporan'] || '') + '" required></div>';
     html += '<div class="mb-2"><label class="form-label">Tahun Pelaporan</label><input type="text" class="form-control" name="tahun_pelaporan" value="' + (laporan['Tahun Pelaporan'] || '') + '" required></div>';
     html += '<div class="mb-2"><label class="form-label">Instansi Tujuan</label><input type="text" class="form-control" name="instansi_tujuan" value="' + (laporan['Instansi Tujuan'] || '') + '" required></div>';
-    // Format value agar sesuai yyyy-mm-dd untuk input type=date
     let tglValue = (laporan['Tanggal Pelaporan'] || '').slice(0, 10);
     html += '<div class="mb-2"><label class="form-label">Tanggal Pelaporan</label><input type="date" class="form-control" name="tanggal_pelaporan" value="' + tglValue + '" required></div>';
     html += '<div class="mb-2"><label class="form-label">Keterangan</label><input type="text" class="form-control" name="keterangan" value="' + (laporan['Keterangan'] || '') + '"></div>';
     document.getElementById('editModalBody').innerHTML = html;
-    // Remove previous event handler to avoid duplicate submits
+    
     setTimeout(function() {
         const editForm = document.getElementById('editLaporanForm');
         if (!editForm) {
@@ -127,7 +123,6 @@ globalThis.editLaporan = function(idx) {
             .then(res => res.json())
             .then(res => {
                 if (res.success) {
-                    // Update data lokal tanpa reload dari server
                     Object.assign(laporan, {
                         pj: data.pj,
                         'Nama Laporan': data.nama_laporan,
@@ -137,7 +132,6 @@ globalThis.editLaporan = function(idx) {
                         'Tanggal Pelaporan': data.tanggal_pelaporan,
                         'Keterangan': data.keterangan
                     });
-                    // Juga update di laporanData jika perlu
                     const idxInLaporanData = laporanData.findIndex(lap => lap.id === laporan.id);
                     if (idxInLaporanData !== -1) {
                         Object.assign(laporanData[idxInLaporanData], laporan);
@@ -153,7 +147,6 @@ globalThis.editLaporan = function(idx) {
     }, 0);
 }
 
-// Hapus laporan dengan modal konfirmasi
 var hapusIdx = null;
 globalThis.hapusLaporan = function(idx) {
     if (!isLoggedIn()) {
@@ -163,7 +156,7 @@ globalThis.hapusLaporan = function(idx) {
         return;
     }
     hapusIdx = idx;
-    // Tampilkan info singkat di modal hapus
+    
     const laporan = filteredData[idx];
     let html = 'Apakah Anda yakin ingin menghapus data ini?';
     if (laporan) {
@@ -178,7 +171,6 @@ globalThis.hapusLaporan = function(idx) {
     modal.show();
 }
 
-// Handler tombol konfirmasi hapus
 document.addEventListener('DOMContentLoaded', function() {
     const hapusBtn = document.getElementById('hapusModalConfirmBtn');
     if (hapusBtn) {
@@ -194,7 +186,6 @@ document.addEventListener('DOMContentLoaded', function() {
                     const modal = bootstrap.Modal.getInstance(document.getElementById('hapusModal'));
                     modal.hide();
                     if (res.success) {
-                        // Refresh data
                         return fetch('/api/laporan').then(r => r.json()).then(d => {
                             laporanData = d.map(lap => ({
                                 ...lap,
@@ -221,7 +212,7 @@ document.addEventListener('DOMContentLoaded', function() {
         };
     }
 });
-// Removed misplaced tbody.appendChild(tr); and extra closing braces
+    
 function formatTanggal(tgl) {
     if (!tgl) return '';
     const d = new Date(tgl);
@@ -273,7 +264,7 @@ function showLoginModal(callback) {
     }
 }
 
-// Removed duplicate dummy editLaporan and hapusLaporan functions
+ 
 
 function renderPaginationControls(total, page, perPage) {
     const controls = document.getElementById("paginationControls");
@@ -339,7 +330,7 @@ function updateTableDisplay() {
         renderPaginationInfo(total, currentPage, perPage);
     }
     renderTable(dataToShow);
-    setExportHandler(dataToShow); // Set export data
+    setExportHandler(dataToShow);
 }
 
 function filterData() {
@@ -357,7 +348,7 @@ fetch('/api/laporan')
         laporanData = data.map(laporan => ({
             id: laporan.id,
             pj: laporan.pj || '',
-            email: laporan.email || '', // <-- tambahkan baris ini
+            email: laporan.email || '',
             'Nama Laporan': laporan.nama_laporan || '',
             'Periode Laporan': laporan.periode_laporan || '',
             'Tahun Pelaporan': laporan.tahun_pelaporan || '',
@@ -400,13 +391,13 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 
-// Export Excel Handler
+ 
 function setExportHandler(dataToShow) {
     const exportBtn = document.getElementById('exportExcelBtn');
     if (!exportBtn) return;
 
     exportBtn.onclick = function () {
-        // Data clean: remove highlight html
+        
         const cleanData = dataToShow.map(laporan => ({
             "Penanggung Jawab": stripHtml(laporan['pj']),
             "Nama Laporan": stripHtml(laporan['Nama Laporan']),
@@ -424,7 +415,7 @@ function setExportHandler(dataToShow) {
     }
 }
 
-// Utility: strip html tags (highlight)
+ 
 function stripHtml(html) {
     let div = document.createElement("div");
     div.innerHTML = html;

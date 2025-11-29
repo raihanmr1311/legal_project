@@ -1,8 +1,5 @@
-// Konfigurasi koneksi database MySQL
 const mysql = require('mysql2');
 
-// Baca konfigurasi dari environment variables agar mudah di-deploy
-// Contoh env vars yang digunakan: DB_HOST, DB_USER, DB_PASS, DB_NAME, DB_PORT
 const dbConfig = {
     host: process.env.DB_HOST || 'localhost',
     user: process.env.DB_USER || 'root',

@@ -1,10 +1,8 @@
-// Konfigurasi email untuk pengiriman notifikasi
-// Membaca dari environment variables agar aman untuk deployment
 function parseAdminEmails(v) {
   if (!v) return [];
   v = String(v).trim();
   if (v.startsWith('[')) {
-    try { return JSON.parse(v); } catch (e) { /* fallthrough */ }
+    try { return JSON.parse(v); } catch (e) { }
   }
   return v.split(',').map(s => s.trim()).filter(Boolean);
 }

@@ -43,7 +43,6 @@ async function tryConfig(port, secure, rejectUnauthorized) {
   for (const port of ports) {
     for (const secure of secureOptions) {
       for (const rej of tlsRejectOptions) {
-        // eslint-disable-next-line no-await-in-loop
         await tryConfig(port, secure, rej);
       }
     }

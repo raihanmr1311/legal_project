@@ -5,7 +5,6 @@ const db = require('./db');
 const nodemailer = require('nodemailer');
 const emailConfig = require('./emailConfig');
 
-// GET /api/laporan - Ambil semua data laporan
 router.get('/laporan', (req, res) => {
     db.query('SELECT * FROM laporan', (err, results) => {
         if (err) {
@@ -15,7 +14,6 @@ router.get('/laporan', (req, res) => {
     });
 });
 
-// POST /api/upload-file (insert laporan)
 router.post('/upload-file', (req, res) => {
     const {
         pj,
@@ -38,27 +36,18 @@ router.post('/upload-file', (req, res) => {
         if (err) {
             return res.json({ success: false, message: 'Gagal menyimpan ke database', error: err });
         }
-        // Kembalikan respons ke client segera setelah data tersimpan
         res.json({ success: true });
 
-        // Kirim email notifikasi ke admin dan user di background.
-        // Tambahkan timeout dan logging agar tidak membuat request client 'pending'.
         (async () => {
             try {
-                const transporterOpts = {
-                    host: emailConfig.host,
-                    port: emailConfig.port,
-                    secure: emailConfig.secure,
-                    auth: emailConfig.auth,
-                    // Timeouts agar tidak menggantung saat SMTP unreachable
-                    connectionTimeout: 10000,
-                    greetingTimeout: 5000,
-                    socketTimeout: 10000
-                };
-                if (process.env.EMAIL_TLS_REJECT_UNAUTHORIZED && process.env.EMAIL_TLS_REJECT_UNAUTHORIZED.toLowerCase() === 'false') {
-                    transporterOpts.tls = { rejectUnauthorized: false };
+                const { createAndVerifyTransporter } = require('./emailClient');
+                let transporter;
+                try {
+                    transporter = await createAndVerifyTransporter();
+                } catch (e) {
+                    console.error('Failed to verify SMTP transporter for background email:', e && e.message ? e.message : e);
+                    transporter = null;
                 }
-                const transporter = nodemailer.createTransport(transporterOpts);
 
                 const adminSubject = 'Laporan Baru Telah Diinput';
                 const adminText = `Notifikasi: Ada laporan baru yang telah diinput oleh ${pj} (email: ${email}).\n\nNama Laporan: ${nama_laporan}\nPeriode: ${periode_laporan}\nTahun: ${tahun_pelaporan}\nInstansi Tujuan: ${instansi_tujuan}\nTanggal Tenggat: ${tanggal_pelaporan}`;
@@ -67,7 +56,7 @@ router.post('/upload-file', (req, res) => {
 
                 const adminPromise = (async () => {
                     try {
-                        if (emailConfig.adminEmails && emailConfig.adminEmails.length) {
+                        if (transporter && emailConfig.adminEmails && emailConfig.adminEmails.length) {
                             await transporter.sendMail({
                                 from: emailConfig.auth.user,
                                 to: emailConfig.adminEmails,
@@ -82,7 +71,7 @@ router.post('/upload-file', (req, res) => {
 
                 const userPromise = (async () => {
                     try {
-                        if (email) {
+                        if (transporter && email) {
                             await transporter.sendMail({
                                 from: emailConfig.auth.user,
                                 to: email,
@@ -104,7 +93,7 @@ router.post('/upload-file', (req, res) => {
 });
 
 module.exports = router;
-// Update laporan
+ 
 router.put('/laporan/:id', (req, res) => {
     const id = req.params.id;
     const {
@@ -119,7 +108,7 @@ router.put('/laporan/:id', (req, res) => {
     if (!pj || !nama_laporan || !periode_laporan || !tahun_pelaporan || !instansi_tujuan || !tanggal_pelaporan) {
         return res.json({ success: false, message: 'Semua field wajib diisi!' });
     }
-    // Ambil tanggal_pelaporan lama
+    
     db.query('SELECT tanggal_pelaporan FROM laporan WHERE id=?', [id], (err, rows) => {
         if (err || !rows.length) {
             return res.json({ success: false, message: 'Data tidak ditemukan', error: err });
@@ -139,7 +128,6 @@ router.put('/laporan/:id', (req, res) => {
     });
 });
 
-// Hapus laporan
 router.delete('/laporan/:id', (req, res) => {
     const id = req.params.id;
     db.query('DELETE FROM laporan WHERE id=?', [id], (err, result) => {
