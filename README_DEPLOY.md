@@ -37,6 +37,25 @@ node Src/server.js
 
 - After deployment, you may need to allow sending emails (check `Src/emailConfig.js` and set environment variables for SMTP)
 
+Mailtrap (testing SMTP inbox)
+- If you want to capture inbound/outbound test messages without using a real Gmail account in production, Mailtrap is a good testing inbox. To use Mailtrap set the following environment variables in your Railway project (or local `.env` for development):
+
+   - `EMAIL_HOST=smtp.mailtrap.io`
+   - `EMAIL_PORT=2525` (or `587`)
+   - `EMAIL_SECURE=false`
+   - `EMAIL_USER=<username from Mailtrap SMTP settings>`
+   - `EMAIL_PASS=<password from Mailtrap SMTP settings>`
+
+   Then run the same one-off send test you used earlier:
+
+   ```powershell
+   railway run node Src/checkSmtpEgress.js smtp.mailtrap.io 2525 5000
+   railway run node Src/sendTestEmail.js you@your.email
+   ```
+
+   - If the TCP check times out from Railway one-off, the deployed containers may still be blocked from that port; if the one-off succeeds but deployed background sends fail, check the deploy logs for transporter.verify() timeouts.
+   - Mailtrap will show captured messages in its inbox UI so you can inspect headers and bodies without sending to real recipients.
+
 Alternative free hosts
 - Render / Fly / Vercel — may require switching DB type (Postgres) or using external MySQL provider.
 

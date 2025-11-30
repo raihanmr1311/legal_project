@@ -8,7 +8,7 @@ function parseAdminEmails(v) {
 }
 
 module.exports = {
-  host: process.env.EMAIL_HOST || 'smtp.gmail.com',
+  host: process.env.EMAIL_HOST || 'sandbox.smtp.mailtrap.io',
   port: process.env.EMAIL_PORT ? Number(process.env.EMAIL_PORT) : 465,
   secure: (process.env.EMAIL_SECURE || 'true').toString().toLowerCase() === 'true',
   auth: {
