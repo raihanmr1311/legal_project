@@ -88,10 +88,11 @@ cron.schedule('06 11 * * *', async () => {
 
                     let anySuccess = false;
                     if (transporter) {
+                        const { sendMailPromise } = require('./emailClient');
                         for (const to of emails) {
                             try {
                                 console.log('Reminder: sending to', to, 'subject:', subject);
-                                const info = await transporter.sendMail({ from: emailConfig.auth.user, to, subject, text });
+                                const info = await sendMailPromise(transporter, { from: emailConfig.auth.user, to, subject, text });
                                 console.log('Reminder sendMail result for', to, { messageId: info && info.messageId, response: info && info.response });
                                 anySuccess = true;
                             } catch (sendErr) {

@@ -39,4 +39,15 @@ function createAndVerifyTransporter() {
   });
 }
 
-module.exports = { createAndVerifyTransporter };
+function sendMailPromise(transporter, mailOptions) {
+  return new Promise((resolve, reject) => {
+    transporter.sendMail(mailOptions, (err, info) => {
+      if (err) {
+        return reject(err);
+      }
+      resolve(info);
+    });
+  });
+}
+
+module.exports = { createAndVerifyTransporter, sendMailPromise };

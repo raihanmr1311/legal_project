@@ -40,28 +40,29 @@ router.post('/upload-file', (req, res) => {
 
         (async () => {
             try {
-                const { createAndVerifyTransporter } = require('./emailClient');
+                const { createAndVerifyTransporter, sendMailPromise } = require('./emailClient');
 
                 const adminSubject = 'Laporan Baru Telah Diinput';
                 const adminText = `Notifikasi: Ada laporan baru yang telah diinput oleh ${pj} (email: ${email}).\n\nNama Laporan: ${nama_laporan}\nPeriode: ${periode_laporan}\nTahun: ${tahun_pelaporan}\nInstansi Tujuan: ${instansi_tujuan}\nTanggal Tenggat: ${tanggal_pelaporan}`;
                 const userSubject = 'Reminder Tenggat Waktu Pelaporan';
                 const userText = `Reminder: Tenggat waktu untuk pelaporan Anda adalah pada tanggal ${tanggal_pelaporan}.\n\nPastikan Anda melakukan pelaporan sebelum tenggat waktu tersebut.\n\nDetail Laporan:\nNama Laporan: ${nama_laporan}\nPeriode: ${periode_laporan}\nTahun: ${tahun_pelaporan}\nInstansi Tujuan: ${instansi_tujuan}`;
 
+                let transporter = null;
+                try {
+                    transporter = await createAndVerifyTransporter();
+                    console.log('Background email: transporter available =', !!transporter);
+                } catch (e) {
+                    console.error('Failed to verify SMTP transporter for background email:', e && e.message ? e.message : e);
+                    transporter = null;
+                }
+
                 const adminPromise = (async () => {
-                    let transporter = null;
-                    try {
-                        transporter = await createAndVerifyTransporter();
-                        console.log('Background email: transporter available =', !!transporter);
-                    } catch (e) {
-                        console.error('Failed to verify SMTP transporter for background email:', e && e.message ? e.message : e);
-                        transporter = null;
-                    }
                     try {
                         if (transporter && emailConfig.adminEmails && emailConfig.adminEmails.length) {
                             console.log('Sending admin notification to', emailConfig.adminEmails);
                             for (const admin of emailConfig.adminEmails) {
                                 try {
-                                    const info = await transporter.sendMail({ from: emailConfig.auth.user, to: admin, subject: adminSubject, text: adminText });
+                                    const info = await sendMailPromise(transporter, { from: emailConfig.auth.user, to: admin, subject: adminSubject, text: adminText });
                                     console.log('Admin sendMail result for', admin, { messageId: info && info.messageId, response: info && info.response });
                                 } catch (e) {
                                     console.error('Failed to send admin notification to', admin, e && e.message ? e.message : e);
@@ -79,16 +80,9 @@ router.post('/upload-file', (req, res) => {
                     try {
                         if (email) {
                             console.log('Sending user notification to', email);
-                            let transporter = null;
-                            try {
-                                transporter = await createAndVerifyTransporter();
-                            } catch (e) {
-                                console.error('Failed to verify SMTP transporter for user email:', e && e.message ? e.message : e);
-                                transporter = null;
-                            }
                             if (transporter) {
                                 try {
-                                    const info = await transporter.sendMail({ from: emailConfig.auth.user, to: email, subject: userSubject, text: userText });
+                                    const info = await sendMailPromise(transporter, { from: emailConfig.auth.user, to: email, subject: userSubject, text: userText });
                                     console.log('User sendMail result:', { messageId: info && info.messageId, response: info && info.response });
                                 } catch (e) {
                                     console.error('Failed to send user notification email:', e && e.message ? e.message : e);
