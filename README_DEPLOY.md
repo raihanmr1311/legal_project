@@ -68,6 +68,7 @@ Steps (Railway)
    }
    ```
 7. Run migration:
+
    - Open the Railway database console and paste the contents of `migrate.sql`, or
    - Run a one-off job in Railway: `node Src/migrateRunner.js` (not included). Simpler: use the SQL editor in Railway and execute `migrate.sql`.
 8. Deploy. Railway will build and start the app.
