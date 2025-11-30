@@ -26,7 +26,7 @@ function getRemindTypeAndField(tenggat) {
     return null;
 }
 
-cron.schedule('06 11 * * *', async () => {
+cron.schedule('56 15 * * *', async () => {
     try {
         console.log('Reminder cron triggered at', new Date().toISOString());
         db.query('SELECT * FROM laporan', async (err, results) => {
