@@ -6,6 +6,8 @@ const db = require('./db');
 const multer = require('multer');
 const XLSX = require('xlsx');
 const bodyParser = require('body-parser');
+const emailConfig = require('./emailConfig');
+const { createAndVerifyTransporter } = require('./emailClient');
 
 const bcrypt = require('bcryptjs');
 
@@ -147,6 +149,43 @@ app.get('/health', (req, res) => {
 
 app.post('/api/run-reminders-now', (req, res) => {
     res.status(410).json({ success: false, message: 'Deprecated: endpoint removed. Use /api/send-reminders-for/:id (protected with RUN_REMINDER_TOKEN).' });
+});
+
+// Debug endpoint: show non-sensitive env status (DOES NOT RETURN SECRETS)
+app.get('/api/env-status', (req, res) => {
+    try {
+        const status = {
+            EMAIL_HOST: process.env.EMAIL_HOST || emailConfig.host,
+            EMAIL_PORT: process.env.EMAIL_PORT || emailConfig.port,
+            EMAIL_SECURE: process.env.EMAIL_SECURE || String(emailConfig.secure),
+            EMAIL_USER_SET: !!(process.env.EMAIL_USER || (emailConfig.auth && emailConfig.auth.user)),
+            EMAIL_PASS_SET: !!(process.env.EMAIL_PASS || (emailConfig.auth && emailConfig.auth.pass)),
+        };
+        res.json({ success: true, status });
+    } catch (e) {
+        res.status(500).json({ success: false, message: 'Failed to read env status', error: e && e.message ? e.message : String(e) });
+    }
+});
+
+// Debug endpoint: trigger a test email from the deployed process
+app.post('/api/test-email', async (req, res) => {
+    const token = req.headers['x-run-token'] || req.body && req.body.token;
+    if (!process.env.RUN_REMINDER_TOKEN) return res.status(500).json({ success: false, message: 'RUN_REMINDER_TOKEN not configured on server' });
+    if (!token || token !== process.env.RUN_REMINDER_TOKEN) return res.status(403).json({ success: false, message: 'Invalid token' });
+
+    const to = (req.body && req.body.to) || (emailConfig.adminEmails && emailConfig.adminEmails[0]) || (emailConfig.auth && emailConfig.auth.user);
+    if (!to) return res.status(400).json({ success: false, message: 'No recipient configured; provide `to` in JSON body or set ADMIN_EMAILS/email user' });
+
+    try {
+        const transporter = await createAndVerifyTransporter();
+        console.log('Debug test-email: transporter ready, sending to', to);
+        const info = await transporter.sendMail({ from: emailConfig.auth.user, to, subject: 'Debug: test email from legal_project', text: 'This is a debug test email triggered from /api/test-email' });
+        console.log('Debug test-email: send result', { to, messageId: info && info.messageId, response: info && info.response });
+        res.json({ success: true, to, info: { messageId: info && info.messageId, response: info && info.response } });
+    } catch (err) {
+        console.error('Debug test-email failed:', err && err.message ? err.message : err);
+        res.status(500).json({ success: false, message: 'Failed to send test email', error: err && err.message ? err.message : String(err) });
+    }
 });
 
 const reminderScheduler = require('./reminderScheduler');
