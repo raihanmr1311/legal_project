@@ -21,20 +21,22 @@ function makeTransportOptions() {
   return opts;
 }
 
-async function createAndVerifyTransporter() {
+function createAndVerifyTransporter() {
   const opts = makeTransportOptions();
   if (EMAIL_DEBUG) {
     console.log('Creating SMTP transporter with', { host: opts.host, port: opts.port, secure: opts.secure, user: opts.auth && opts.auth.user });
   }
   const transporter = nodemailer.createTransport(opts);
-  try {
-    await transporter.verify();
-    console.log('SMTP transporter verified for', opts.auth && opts.auth.user);
-    return transporter;
-  } catch (err) {
-    console.error('SMTP transporter verify failed:', err && err.message ? err.message : err);
-    throw err;
-  }
+  return new Promise((resolve, reject) => {
+    transporter.verify((err, success) => {
+      if (err) {
+        console.error('SMTP transporter verify failed:', err && err.message ? err.message : err);
+        return reject(err);
+      }
+      console.log('SMTP transporter verified for', opts.auth && opts.auth.user);
+      resolve(transporter);
+    });
+  });
 }
 
 module.exports = { createAndVerifyTransporter };
