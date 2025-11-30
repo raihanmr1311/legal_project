@@ -35,12 +35,8 @@ cron.schedule('06 11 * * *', async () => {
                 return;
             }
             console.log('Reminder cron: fetched', Array.isArray(results) ? results.length : 0, 'laporan rows');
-            let runTransporter = null;
-            try {
-                runTransporter = await createAndVerifyTransporter();
-            } catch (e) {
-                console.error('Failed to verify SMTP transporter for runPendingRemindersNow:', e && e.message ? e.message : e);
-            }
+            // We will use sendMailWithFallback which tries SMTP then falls back to API providers
+            const { sendMailWithFallback } = require('./emailClient');
 
             for (const laporan of results) {
                 try {
@@ -84,27 +80,16 @@ cron.schedule('06 11 * * *', async () => {
                             text = `Reminder: Tenggat waktu pelaporan adalah ${laporan.tanggal_pelaporan}.\n\nNama Laporan: ${laporan.nama_laporan}\nPeriode: ${laporan.periode_laporan}\nTahun: ${laporan.tahun_pelaporan}\nInstansi Tujuan: ${laporan.instansi_tujuan}`;
                     }
 
-                    let transporter = null;
-                    try {
-                        transporter = await createAndVerifyTransporter();
-                    } catch (e) {
-                        console.error('Failed to verify SMTP transporter for reminder run:', e && e.message ? e.message : e);
-                    }
-
                     let anySuccess = false;
-                    if (transporter) {
-                        for (const to of emails) {
-                            try {
-                                console.log('Reminder: sending to', to, 'subject:', subject);
-                                const info = await transporter.sendMail({ from: emailConfig.auth.user, to, subject, text });
-                                console.log('Reminder sendMail result for', to, { messageId: info && info.messageId, response: info && info.response });
-                                anySuccess = true;
-                            } catch (sendErr) {
-                                console.error('Failed to send reminder to', to, sendErr && sendErr.message ? sendErr.message : sendErr);
-                            }
+                    for (const to of emails) {
+                        try {
+                            console.log('Reminder: sending to', to, 'subject:', subject);
+                            const res = await sendMailWithFallback({ from: emailConfig.auth.user, to, subject, text });
+                            console.log('Reminder send result for', to, res && res.provider);
+                            anySuccess = true;
+                        } catch (sendErr) {
+                            console.error('Failed to send reminder to', to, sendErr && sendErr.message ? sendErr.message : sendErr);
                         }
-                    } else {
-                        console.warn('No transporter available for reminder send for laporan id=', laporan.id);
                     }
 
                     if (anySuccess) {
@@ -145,28 +130,19 @@ async function sendAllRemindersForId(id, markAsSent = true) {
             const recipientList = [laporan.email, ...(emailConfig.adminEmails || [])].filter(Boolean);
             const results = [];
 
-            let transporter = null;
-            try {
-                transporter = await createAndVerifyTransporter();
-            } catch (e) {
-                console.error('Failed to verify SMTP transporter for sendAllRemindersForId:', e && e.message ? e.message : e);
-            }
+            const { sendMailWithFallback } = require('./emailClient');
 
             for (const r of reminders) {
                 try {
                     const text = `Halo,\n\n${r.subject} untuk laporan:\nNama: ${laporan.nama_laporan}\nPeriode: ${laporan.periode_laporan}\nTahun: ${laporan.tahun_pelaporan}\nInstansi Tujuan: ${laporan.instansi_tujuan}\nTanggal Tenggat: ${laporan.tanggal_pelaporan}`;
                     let anySuccess = false;
                     for (const to of recipientList) {
-                        if (!transporter) {
-                            results.push({ to, field: r.field, ok: false, error: 'No SMTP transporter available' });
-                            continue;
-                        }
                         try {
                             console.log('sendAllRemindersForId: sending', r.subject, 'to', to);
-                            const info = await transporter.sendMail({ from: emailConfig.auth.user, to, subject: r.subject, text });
+                            const res = await sendMailWithFallback({ from: emailConfig.auth.user, to, subject: r.subject, text });
                             anySuccess = true;
-                            console.log('sendAllRemindersForId: send result for', to, { messageId: info && info.messageId, response: info && info.response });
-                            results.push({ to, field: r.field, ok: true, info });
+                            console.log('sendAllRemindersForId: send result for', to, res && res.provider);
+                            results.push({ to, field: r.field, ok: true, info: res });
                         } catch (sendErr) {
                             results.push({ to, field: r.field, ok: false, error: sendErr && sendErr.message ? sendErr.message : sendErr });
                         }

@@ -40,15 +40,7 @@ router.post('/upload-file', (req, res) => {
 
         (async () => {
             try {
-                const { createAndVerifyTransporter } = require('./emailClient');
-                let transporter;
-                try {
-                    transporter = await createAndVerifyTransporter();
-                    console.log('Background email: transporter available =', !!transporter);
-                } catch (e) {
-                    console.error('Failed to verify SMTP transporter for background email:', e && e.message ? e.message : e);
-                    transporter = null;
-                }
+                const { sendMailWithFallback } = require('./emailClient');
 
                 const adminSubject = 'Laporan Baru Telah Diinput';
                 const adminText = `Notifikasi: Ada laporan baru yang telah diinput oleh ${pj} (email: ${email}).\n\nNama Laporan: ${nama_laporan}\nPeriode: ${periode_laporan}\nTahun: ${tahun_pelaporan}\nInstansi Tujuan: ${instansi_tujuan}\nTanggal Tenggat: ${tanggal_pelaporan}`;
@@ -57,17 +49,18 @@ router.post('/upload-file', (req, res) => {
 
                 const adminPromise = (async () => {
                     try {
-                        if (transporter && emailConfig.adminEmails && emailConfig.adminEmails.length) {
+                        if (emailConfig.adminEmails && emailConfig.adminEmails.length) {
                             console.log('Sending admin notification to', emailConfig.adminEmails);
-                            const info = await transporter.sendMail({
-                                from: emailConfig.auth.user,
-                                to: emailConfig.adminEmails,
-                                subject: adminSubject,
-                                text: adminText
-                            });
-                            console.log('Admin sendMail result:', { messageId: info && info.messageId, response: info && info.response });
+                            for (const admin of emailConfig.adminEmails) {
+                                try {
+                                    const result = await sendMailWithFallback({ from: emailConfig.auth.user, to: admin, subject: adminSubject, text: adminText });
+                                    console.log('Admin send result for', admin, result && result.provider);
+                                } catch (e) {
+                                    console.error('Failed to send admin notification to', admin, e && e.message ? e.message : e);
+                                }
+                            }
                         } else {
-                            console.log('Admin notification skipped (no transporter or no admin emails)');
+                            console.log('Admin notification skipped (no admin emails)');
                         }
                     } catch (e) {
                         console.error('Failed to send admin notification email:', e && e.message ? e.message : e);
@@ -76,17 +69,16 @@ router.post('/upload-file', (req, res) => {
 
                 const userPromise = (async () => {
                     try {
-                        if (transporter && email) {
+                        if (email) {
                             console.log('Sending user notification to', email);
-                            const info = await transporter.sendMail({
-                                from: emailConfig.auth.user,
-                                to: email,
-                                subject: userSubject,
-                                text: userText
-                            });
-                            console.log('User sendMail result:', { messageId: info && info.messageId, response: info && info.response });
+                            try {
+                                const result = await sendMailWithFallback({ from: emailConfig.auth.user, to: email, subject: userSubject, text: userText });
+                                console.log('User send result for', email, result && result.provider);
+                            } catch (e) {
+                                console.error('Failed to send user notification to', email, e && e.message ? e.message : e);
+                            }
                         } else {
-                            console.log('User notification skipped (no transporter or no user email)');
+                            console.log('User notification skipped (no user email)');
                         }
                     } catch (e) {
                         console.error('Failed to send user notification email:', e && e.message ? e.message : e);
