@@ -14,12 +14,37 @@
             padding: 2.5rem 2rem 2rem 2rem;
             margin-top: 5rem;
         }
+        .logo-wrapper .eye-badge{
+            position:absolute;
+            right:-8px;
+            top:-8px;
+            background:#fff;
+            border-radius:50%;
+            padding:4px;
+            box-shadow:0 2px 6px rgba(0,0,0,0.12);
+            display:flex;
+            align-items:center;
+            justify-content:center;
+            width:34px;
+            height:34px;
+        }
+        .logo-wrapper .eye-badge svg{display:block}
     </style>
 </head>
 <body>
     <div class="vh-100 d-flex align-items-center justify-content-center">
         <div class="login-wrapper text-center">
-            <img src="Assets/img/logo.png" alt="SItem Pelaporan BSP" class="mb-1 login-logo" style="height:72px; object-fit:contain">
+            <div class="logo-wrapper mb-1" style="display:inline-block; position:relative;">
+                <img src="Assets/img/logo.png" alt="SItem Pelaporan BSP" class="login-logo" style="height:72px; object-fit:contain">
+                <!-- Eye logo badge -->
+                <div class="eye-badge" aria-hidden="true">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" focusable="false">
+                        <path d="M12 5C7 5 2.73 8.11 1 12c1.73 3.89 6 7 11 7s9.27-3.11 11-7c-1.73-3.89-6-7-11-7z" stroke="#0d6efd" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+                        <circle cx="12" cy="12" r="3" stroke="#0d6efd" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+                        <circle cx="12" cy="12" r="1.2" fill="#0d6efd" />
+                    </svg>
+                </div>
+            </div>
             <div class="login-site-title fw-bold fs-5 mb-3">SItem Pelaporan BSP</div>
             <div class="login-card mx-auto shadow-sm">
 

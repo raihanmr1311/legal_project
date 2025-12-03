@@ -4,10 +4,10 @@ const mysql = require('mysql2');
 const sql = fs.readFileSync(require('path').join(__dirname, '..', 'migrate.sql'), 'utf8');
 
 const conn = mysql.createConnection({
-  host: process.env.DB_HOST || 'localhost',
-  user: process.env.DB_USER || 'root',
+  host: process.env.DB_HOST || '',
+  user: process.env.DB_USER || '',
   password: process.env.DB_PASS || '',
-  database: process.env.DB_NAME || 'legal_project',
+  database: process.env.DB_NAME || '',
   port: process.env.DB_PORT ? Number(process.env.DB_PORT) : 3306,
   multipleStatements: true
 });

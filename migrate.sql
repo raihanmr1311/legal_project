@@ -58,9 +58,19 @@ CREATE TABLE IF NOT EXISTS `laporan` (
   KEY `idx_tanggal` (`tanggal_dikirim`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- Ensure required columns exist (MySQL 8+ supports ADD COLUMN IF NOT EXISTS)
-ALTER TABLE `laporan` ADD COLUMN IF NOT EXISTS `perseroan` INT UNSIGNED NULL;
-ALTER TABLE `laporan` ADD COLUMN IF NOT EXISTS `email` VARCHAR(255) DEFAULT NULL;
+-- Ensure required columns exist (compatible with older MySQL versions)
+SET @col_exists := (SELECT COUNT(*) FROM information_schema.COLUMNS WHERE table_schema = DATABASE() AND table_name = 'laporan' AND column_name = 'perseroan');
+SET @add_col_sql := IF(@col_exists = 0, 'ALTER TABLE laporan ADD COLUMN perseroan INT UNSIGNED NULL', 'SELECT 1');
+PREPARE stmt_col1 FROM @add_col_sql; EXECUTE stmt_col1; DEALLOCATE PREPARE stmt_col1;
+
+SET @col_exists_email := (SELECT COUNT(*) FROM information_schema.COLUMNS WHERE table_schema = DATABASE() AND table_name = 'laporan' AND column_name = 'email');
+SET @add_col_email_sql := IF(@col_exists_email = 0, 'ALTER TABLE laporan ADD COLUMN email VARCHAR(255) DEFAULT NULL', 'SELECT 1');
+PREPARE stmt_col2 FROM @add_col_email_sql; EXECUTE stmt_col2; DEALLOCATE PREPARE stmt_col2;
+-- If perseroan column exists but is not INT UNSIGNED, attempt to convert it to INT UNSIGNED
+-- (this will coerce non-numeric values to 0; review data before applying in production)
+SET @col_check := (SELECT COUNT(*) FROM information_schema.COLUMNS WHERE table_schema = DATABASE() AND table_name = 'laporan' AND column_name = 'perseroan' AND DATA_TYPE = 'int' AND LOCATE('unsigned', COLUMN_TYPE) > 0);
+SET @mod_sql := IF(@col_check = 0, 'ALTER TABLE laporan MODIFY COLUMN perseroan INT UNSIGNED NULL', 'SELECT 1');
+PREPARE stmt_modcol FROM @mod_sql; EXECUTE stmt_modcol; DEALLOCATE PREPARE stmt_modcol;
 
 -- Ensure an index on perseroan exists
 SET @ix_count := (SELECT COUNT(*) FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name = 'laporan' AND index_name = 'idx_perseroan');
@@ -71,3 +81,9 @@ PREPARE stmt_ix FROM @create_ix_sql; EXECUTE stmt_ix; DEALLOCATE PREPARE stmt_ix
 SET @fk_count := (SELECT COUNT(*) FROM information_schema.table_constraints WHERE constraint_type = 'FOREIGN KEY' AND table_schema = DATABASE() AND table_name = 'laporan' AND constraint_name = 'fk_laporan_perseroan');
 SET @add_fk_sql := IF(@fk_count = 0, 'ALTER TABLE laporan ADD CONSTRAINT fk_laporan_perseroan FOREIGN KEY (perseroan) REFERENCES perseroan(id) ON UPDATE CASCADE ON DELETE SET NULL', 'SELECT 1');
 PREPARE stmt_fk FROM @add_fk_sql; EXECUTE stmt_fk; DEALLOCATE PREPARE stmt_fk;
+
+-- If perseroan column exists but is not INT UNSIGNED, attempt to convert it to INT UNSIGNED
+-- (this will coerce non-numeric values to 0; review data before applying in production)
+SET @col_check := (SELECT COUNT(*) FROM information_schema.COLUMNS WHERE table_schema = DATABASE() AND table_name = 'laporan' AND column_name = 'perseroan' AND DATA_TYPE = 'int' AND LOCATE('unsigned', COLUMN_TYPE) > 0);
+SET @mod_sql := IF(@col_check = 0, 'ALTER TABLE laporan MODIFY COLUMN perseroan INT UNSIGNED NULL', 'SELECT 1');
+PREPARE stmt_modcol FROM @mod_sql; EXECUTE stmt_modcol; DEALLOCATE PREPARE stmt_modcol;
