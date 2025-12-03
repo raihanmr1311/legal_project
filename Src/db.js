@@ -5,7 +5,7 @@ const dbConfig = {
     user: process.env.DB_USER || 'root',
     password: process.env.DB_PASS || '',
     database: process.env.DB_NAME || 'legal_project',
-    port: process.env.DB_PORT ? Number(process.env.DB_PORT) : 3306,
+    port: process.env.DB_PORT ? Number(process.env.DB_PORT) : 3307,
     waitForConnections: true,
     connectionLimit: 10,
     queueLimit: 0
