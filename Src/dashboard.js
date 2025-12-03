@@ -1,4 +1,3 @@
-// If user is not logged in, send them to the dedicated login page immediately
 document.addEventListener('DOMContentLoaded', function() {
     if (!isLoggedIn()) {
         window.location.href = 'login.html';
@@ -9,7 +8,7 @@ document.addEventListener('DOMContentLoaded', function() {
 document.addEventListener('DOMContentLoaded', function() {
     var tambahBtn = document.getElementById('tambahLaporanBtn');
     if (tambahBtn) {
-        // Since the app now forces login on page entry, the button can directly go to the form
+        
         tambahBtn.addEventListener('click', function() {
             window.location.href = 'form-laporan.html';
         });
@@ -113,12 +112,11 @@ globalThis.editLaporan = function(idx) {
     let tglValue = (laporan['Tanggal Dikirim'] || laporan['Tanggal Pelaporan'] || laporan['tanggal_pelaporan'] || laporan['tanggal_dikirim'] || '').slice(0,10);
     html += '<div class="mb-2"><label class="form-label">Tanggal Dikirim</label><input type="date" class="form-control" name="tanggal_dikirim" value="' + tglValue + '" required></div>';
     html += '<div class="mb-2"><label class="form-label">Keterangan</label><input type="text" class="form-control" name="keterangan" value="' + (laporan['Keterangan'] || '') + '"></div>';
-        // File input removed from edit modal per request
-        // show current file as read-only link instead (if present)
+        
         if (laporan['File']) {
                 html += '<div class="mb-2"><label class="form-label">File</label><div><a href="' + laporan['File'] + '" target="_blank">' + stripHtml(laporan['File']) + '</a></div></div>';
         }
-        // Status as dropdown
+        
         const currentStatus = laporan['Status'] || laporan['status'] || '';
         html += '<div class="mb-2"><label class="form-label">Status</label>' +
                         '<select class="form-select" name="status">' +
@@ -393,7 +391,7 @@ if (!isAdmin()) {
 fetch(laporanUrl)
     .then(response => response.json())
     .then(async data => {
-        // initial mapping
+        
         laporanData = data.map(laporan => ({
             id: laporan.id,
             perseroan: laporan.perseroan || '',
@@ -410,7 +408,7 @@ fetch(laporanUrl)
             'Status': laporan.status || ''
         }));
 
-        // Collect numeric perseroan ids that are currently shown as numbers
+        
         const numericIds = new Set();
         laporanData.forEach(l => {
             const v = String(l.perseroan || '');
@@ -418,7 +416,7 @@ fetch(laporanUrl)
         });
 
         if (numericIds.size > 0) {
-            // Fetch names for each id and build a map
+            
             const idArray = Array.from(numericIds);
             try {
                 const promises = idArray.map(id => fetch('/api/perseroan?id=' + encodeURIComponent(id)).then(r => r.json()).catch(() => null));
@@ -430,7 +428,7 @@ fetch(laporanUrl)
                         nameMap[id] = res.perseroan.perseroan;
                     }
                 });
-                // Replace numeric perseroan with names where available
+                
                 laporanData = laporanData.map(l => ({
                     ...l,
                     perseroan: (String(l.perseroan) && nameMap[String(l.perseroan)]) ? nameMap[String(l.perseroan)] : l.perseroan

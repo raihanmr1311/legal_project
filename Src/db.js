@@ -11,7 +11,6 @@ const dbConfig = {
     queueLimit: 0
 };
 
-// Log connection target (do not log password)
 console.log('DB pool config (target):', {
   host: dbConfig.host,
   port: dbConfig.port,

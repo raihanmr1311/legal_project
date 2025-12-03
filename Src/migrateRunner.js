@@ -12,7 +12,6 @@ const conn = mysql.createConnection({
   multipleStatements: true
 });
 
-// Log connection target (do not print password)
 console.log('Migrasi: akan mencoba konek ke DB dengan:', {
   host: process.env.DB_HOST || 'localhost',
   port: process.env.DB_PORT ? Number(process.env.DB_PORT) : 3306,

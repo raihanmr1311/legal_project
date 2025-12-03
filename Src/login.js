@@ -15,7 +15,7 @@ router.post('/login', (req, res) => {
         const user = results[0];
 
         const respondWithPerseroanId = (userObj) => {
-            // Try to resolve perseroan_id: if users.perseroan already numeric, use it; otherwise lookup in perseroan table
+            
             const raw = userObj.perseroan;
             if (raw && String(raw).match(/^\d+$/)) {
                 const pid = Number(raw);
@@ -23,7 +23,6 @@ router.post('/login', (req, res) => {
             }
             db.query('SELECT id FROM perseroan WHERE perseroan = ? LIMIT 1', [raw || ''], (err2, rows2) => {
                 if (err2) {
-                    // still respond but without perseroan_id
                     return res.json({ success: true, role: userObj.role, perseroan: userObj.perseroan || null, perseroan_id: null, userId: userObj.id });
                 }
                 if (rows2 && rows2.length) return res.json({ success: true, role: userObj.role, perseroan: userObj.perseroan || null, perseroan_id: rows2[0].id, userId: userObj.id });

@@ -6,11 +6,10 @@ const multer = require('multer');
 const upload = multer({ storage: multer.memoryStorage() });
 const nodemailer = require('nodemailer');
 const emailConfig = require('./emailConfig');
-// Upload to Google Drive disabled by request. Commenting out Drive helper require.
-// const { uploadFileStream } = require('./gdriveClient');
+ 
 
 router.get('/laporan', (req, res) => {
-    // Try to join with perseroan table to return perseroan (company) name when available.
+    
     let sql = `SELECT l.*, p.perseroan AS perseroan_name, p.id AS perseroan_id
                  FROM laporan l
                  LEFT JOIN perseroan p ON l.perseroan = p.id`;
@@ -21,13 +20,13 @@ router.get('/laporan', (req, res) => {
     }
     db.query(sql, params, (err, results) => {
         if (err) {
-            // Fallback to simple select if join fails for any reason
+            
             return db.query('SELECT * FROM laporan', (err2, results2) => {
                 if (err2) return res.status(500).json({ success: false, message: 'Gagal mengambil data laporan', error: err2 });
                 return res.json(results2);
             });
         }
-        // Normalize keys for frontend compatibility
+        
         const normalized = results.map(r => ({
             ...r,
             perseroan: r.perseroan_name || r.perseroan || (r.perseroan_id ? r.perseroan_id : ''),
@@ -58,22 +57,22 @@ router.post('/upload-file', (req, res) => {
         email
     } = req.body;
 
-    // Validate required fields for the new schema
+    
     if (!jenis_laporan || !periode_laporan || !tahun_laporan || !instansi_tujuan || !tanggal_dikirim) {
         return res.status(400).json({ success: false, message: 'Field wajib: jenis_laporan, periode_laporan, tahun_laporan, instansi_tujuan, tanggal_dikirim' });
     }
 
-    // Resolve perseroan: accept numeric id or lookup by perseroan name / username
+    
     const resolvePerseroanId = (val, cb) => {
         if (!val) return cb(null, null);
-        // if already numeric id
+        
         if (typeof val === 'number' || String(val).match(/^\d+$/)) {
             return cb(null, Number(val));
         }
-        // Prefer looking up the perseroan table (normalized companies)
+        
         db.query('SELECT id FROM perseroan WHERE perseroan = ? LIMIT 1', [val], (err1, rows1) => {
             if (err1) {
-                // fallback to older heuristics when perseroan table isn't available
+                
                 const sql = 'SELECT id FROM users WHERE username = ? OR perseroan = ? LIMIT 1';
                 return db.query(sql, [val, val], (err2, rows2) => {
                     if (err2) return cb(err2);
@@ -82,11 +81,11 @@ router.post('/upload-file', (req, res) => {
                 });
             }
             if (rows1 && rows1.length) return cb(null, rows1[0].id);
-            // fallback: try matching username in users table
+            
             db.query('SELECT id, perseroan, perseroan_id FROM users WHERE username = ? LIMIT 1', [val], (err3, rows3) => {
                 if (err3) return cb(err3);
                 if (rows3 && rows3.length) {
-                    // if users.perseroan is numeric, return it; otherwise if users.perseroan_id exists, return that
+                    
                     const u = rows3[0];
                     if (u.perseroan_id) return cb(null, Number(u.perseroan_id));
                     if (u.perseroan && String(u.perseroan).match(/^\d+$/)) return cb(null, Number(u.perseroan));
@@ -103,7 +102,7 @@ router.post('/upload-file', (req, res) => {
             return res.status(500).json({ success: false, message: 'Gagal resolve perseroan', error: err && err.message ? err.message : String(err) });
         }
 
-        // Database has `keterangan` now. Use a fixed INSERT and then send notifications asynchronously.
+        
         const insertSql = `INSERT INTO laporan (perseroan, jenis_laporan, periode_laporan, tahun_laporan, instansi_tujuan, tanggal_dikirim, status, file, email, keterangan)
                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
         const vals = [resolvedPerseroanId || null, jenis_laporan, periode_laporan, tahun_laporan, instansi_tujuan, tanggal_dikirim, status || 'pending', file || null, email || null, keterangan || null];
@@ -116,7 +115,7 @@ router.post('/upload-file', (req, res) => {
 
             res.json({ success: true, id: result.insertId });
 
-            // send background notifications (non-blocking) using correct variables
+            
             (async () => {
                 try {
                     const { createAndVerifyTransporter, sendMailPromise } = require('./emailClient');
@@ -176,25 +175,7 @@ router.post('/upload-file', (req, res) => {
     });
 });
 
-// New: upload a file to Google Drive and return file metadata
-// Drive upload route disabled. To re-enable, restore the uploadFileStream require above
-// and uncomment the route implementation below.
-/*
-router.post('/upload-drive', upload.single('file'), async (req, res) => {
-    try {
-        if (!req.file) return res.status(400).json({ success: false, message: 'No file uploaded' });
-        const file = req.file;
-        const stream = require('stream');
-        const readStream = new stream.PassThrough();
-        readStream.end(file.buffer);
-        const gfile = await uploadFileStream({ filename: file.originalname, mimeType: file.mimetype, stream: readStream });
-        return res.json({ success: true, file: gfile });
-    } catch (err) {
-        console.error('Drive upload failed', err);
-        return res.status(500).json({ success: false, message: 'Upload to Drive failed', error: err && err.message ? err.message : String(err) });
-    }
-});
-*/
+
 
 router.put('/laporan/:id', (req, res) => {
     const id = req.params.id;
@@ -212,7 +193,6 @@ router.put('/laporan/:id', (req, res) => {
         keterangan
     } = req.body;
 
-    // Fetch current tanggal to decide whether to reset reminders
     db.query('SELECT tanggal_dikirim FROM laporan WHERE id=?', [id], (err, rows) => {
         if (err || !rows.length) {
             return res.status(404).json({ success: false, message: 'Data tidak ditemukan', error: err });
@@ -227,7 +207,6 @@ router.put('/laporan/:id', (req, res) => {
         const resolvePerseroanId = (val, cb) => {
             if (!val) return cb(null, null);
             if (typeof val === 'number' || String(val).match(/^\d+$/)) return cb(null, Number(val));
-            // prefer perseroan table
             db.query('SELECT id FROM perseroan WHERE perseroan = ? LIMIT 1', [val], (err1, rows1) => {
                 if (err1) {
                     return db.query('SELECT id FROM users WHERE username = ? LIMIT 1', [val], (err2, r) => {
@@ -237,7 +216,7 @@ router.put('/laporan/:id', (req, res) => {
                     });
                 }
                 if (rows1 && rows1.length) return cb(null, rows1[0].id);
-                // fallback to users.username
+                
                 db.query('SELECT id, perseroan, perseroan_id FROM users WHERE username = ? LIMIT 1', [val], (err3, rows3) => {
                     if (err3) return cb(err3);
                     if (rows3 && rows3.length) {
