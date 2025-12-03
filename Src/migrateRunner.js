@@ -8,8 +8,16 @@ const conn = mysql.createConnection({
   user: process.env.DB_USER || 'root',
   password: process.env.DB_PASS || '',
   database: process.env.DB_NAME || 'legal_project',
-  port: process.env.DB_PORT ? Number(process.env.DB_PORT) : 3307,
+  port: process.env.DB_PORT ? Number(process.env.DB_PORT) : 3306,
   multipleStatements: true
+});
+
+// Log connection target (do not print password)
+console.log('Migrasi: akan mencoba konek ke DB dengan:', {
+  host: process.env.DB_HOST || 'localhost',
+  port: process.env.DB_PORT ? Number(process.env.DB_PORT) : 3306,
+  database: process.env.DB_NAME || 'legal_project',
+  user: process.env.DB_USER || 'root'
 });
 
 conn.connect(err => {
