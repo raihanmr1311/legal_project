@@ -39,7 +39,13 @@ cron.schedule('56 15 * * *', async () => {
 
             for (const laporan of results) {
                 try {
-                    const remind = getRemindTypeAndField(laporan.tanggal_pelaporan);
+                    const tanggal = laporan.tanggal_pelaporan || laporan.tanggal_dikirim || laporan.tanggal; // support both names
+                    const nama = laporan.nama_laporan || laporan.jenis_laporan || laporan.nama || '';
+                    const tahun = laporan.tahun_pelaporan || laporan.tahun_laporan || laporan.tahun || '';
+                    const periode = laporan.periode_laporan || laporan.periode || '';
+                    const instansi = laporan.instansi_tujuan || laporan.instansi || '';
+
+                    const remind = getRemindTypeAndField(tanggal);
                     if (!remind) continue;
                     if (laporan[remind.field]) continue;
                     const emails = [laporan.email, ...(emailConfig.adminEmails || [])].filter(Boolean);
@@ -48,35 +54,35 @@ cron.schedule('56 15 * * *', async () => {
                     switch (remind.type) {
                         case 'H-1 Bulan':
                             subject = 'Reminder: 1 Bulan Menuju Tenggat Pelaporan';
-                            text = `Halo,\n\nTenggat waktu pelaporan untuk laporan berikut akan jatuh tempo 1 bulan lagi, pada tanggal ${laporan.tanggal_pelaporan}.\n\nDetail Laporan:\nNama: ${laporan.nama_laporan}\nPeriode: ${laporan.periode_laporan}\nTahun: ${laporan.tahun_pelaporan}\nInstansi Tujuan: ${laporan.instansi_tujuan}`;
+                            text = `Halo,\n\nTenggat waktu pelaporan untuk laporan berikut akan jatuh tempo 1 bulan lagi, pada tanggal ${tanggal}.\n\nDetail Laporan:\nNama: ${nama}\nPeriode: ${periode}\nTahun: ${tahun}\nInstansi Tujuan: ${instansi}`;
                             break;
                         case 'H-2 Minggu':
                             subject = 'Reminder: 2 Minggu Menuju Tenggat Pelaporan';
-                            text = `Halo,\n\nTenggat waktu pelaporan untuk laporan berikut akan jatuh tempo 2 minggu lagi, pada tanggal ${laporan.tanggal_pelaporan}.\n\nDetail Laporan:\nNama: ${laporan.nama_laporan}\nPeriode: ${laporan.periode_laporan}\nTahun: ${laporan.tahun_pelaporan}\nInstansi Tujuan: ${laporan.instansi_tujuan}`;
+                            text = `Halo,\n\nTenggat waktu pelaporan untuk laporan berikut akan jatuh tempo 2 minggu lagi, pada tanggal ${tanggal}.\n\nDetail Laporan:\nNama: ${nama}\nPeriode: ${periode}\nTahun: ${tahun}\nInstansi Tujuan: ${instansi}`;
                             break;
                         case 'H-1 Minggu (7)':
                             subject = 'Reminder: 1 Minggu Menuju Tenggat Pelaporan';
-                            text = `Halo,\n\nTenggat waktu pelaporan untuk laporan berikut akan jatuh tempo 1 minggu lagi, pada tanggal ${laporan.tanggal_pelaporan}.\n\nDetail Laporan:\nNama: ${laporan.nama_laporan}\nPeriode: ${laporan.periode_laporan}\nTahun: ${laporan.tahun_pelaporan}\nInstansi Tujuan: ${laporan.instansi_tujuan}`;
+                            text = `Halo,\n\nTenggat waktu pelaporan untuk laporan berikut akan jatuh tempo 1 minggu lagi, pada tanggal ${tanggal}.\n\nDetail Laporan:\nNama: ${nama}\nPeriode: ${periode}\nTahun: ${tahun}\nInstansi Tujuan: ${instansi}`;
                             break;
                         case 'H-1 Minggu (5)':
                             subject = 'Reminder: 5 Hari Menuju Tenggat Pelaporan';
-                            text = `Halo,\n\nTenggat waktu pelaporan untuk laporan berikut akan jatuh tempo 5 hari lagi, pada tanggal ${laporan.tanggal_pelaporan}.\n\nDetail Laporan:\nNama: ${laporan.nama_laporan}\nPeriode: ${laporan.periode_laporan}\nTahun: ${laporan.tahun_pelaporan}\nInstansi Tujuan: ${laporan.instansi_tujuan}`;
+                            text = `Halo,\n\nTenggat waktu pelaporan untuk laporan berikut akan jatuh tempo 5 hari lagi, pada tanggal ${tanggal}.\n\nDetail Laporan:\nNama: ${nama}\nPeriode: ${periode}\nTahun: ${tahun}\nInstansi Tujuan: ${instansi}`;
                             break;
                         case 'H-1 Minggu (3)':
                             subject = 'Reminder: 3 Hari Menuju Tenggat Pelaporan';
-                            text = `Halo,\n\nTenggat waktu pelaporan untuk laporan berikut akan jatuh tempo 3 hari lagi, pada tanggal ${laporan.tanggal_pelaporan}.\n\nDetail Laporan:\nNama: ${laporan.nama_laporan}\nPeriode: ${laporan.periode_laporan}\nTahun: ${laporan.tahun_pelaporan}\nInstansi Tujuan: ${laporan.instansi_tujuan}`;
+                            text = `Halo,\n\nTenggat waktu pelaporan untuk laporan berikut akan jatuh tempo 3 hari lagi, pada tanggal ${tanggal}.\n\nDetail Laporan:\nNama: ${nama}\nPeriode: ${periode}\nTahun: ${tahun}\nInstansi Tujuan: ${instansi}`;
                             break;
                         case 'H-1':
                             subject = 'Reminder: Besok Tenggat Pelaporan!';
-                            text = `Halo,\n\nTenggat waktu pelaporan untuk laporan berikut adalah BESOK (${laporan.tanggal_pelaporan}).\n\nSegera lakukan pelaporan jika belum.\n\nDetail Laporan:\nNama: ${laporan.nama_laporan}\nPeriode: ${laporan.periode_laporan}\nTahun: ${laporan.tahun_pelaporan}\nInstansi Tujuan: ${laporan.instansi_tujuan}`;
+                            text = `Halo,\n\nTenggat waktu pelaporan untuk laporan berikut adalah BESOK (${tanggal}).\n\nSegera lakukan pelaporan jika belum.\n\nDetail Laporan:\nNama: ${nama}\nPeriode: ${periode}\nTahun: ${tahun}\nInstansi Tujuan: ${instansi}`;
                             break;
                         case 'Hari-H':
                             subject = 'Reminder: Hari Ini Tenggat Pelaporan!';
-                            text = `Halo,\n\nHari ini adalah tenggat waktu pelaporan untuk laporan berikut (${laporan.tanggal_pelaporan}).\n\nSegera lakukan pelaporan jika belum.\n\nDetail Laporan:\nNama: ${laporan.nama_laporan}\nPeriode: ${laporan.periode_laporan}\nTahun: ${laporan.tahun_pelaporan}\nInstansi Tujuan: ${laporan.instansi_tujuan}`;
+                            text = `Halo,\n\nHari ini adalah tenggat waktu pelaporan untuk laporan berikut (${tanggal}).\n\nSegera lakukan pelaporan jika belum.\n\nDetail Laporan:\nNama: ${nama}\nPeriode: ${periode}\nTahun: ${tahun}\nInstansi Tujuan: ${instansi}`;
                             break;
                         default:
                             subject = 'Reminder Tenggat Waktu Pelaporan';
-                            text = `Reminder: Tenggat waktu pelaporan adalah ${laporan.tanggal_pelaporan}.\n\nNama Laporan: ${laporan.nama_laporan}\nPeriode: ${laporan.periode_laporan}\nTahun: ${laporan.tahun_pelaporan}\nInstansi Tujuan: ${laporan.instansi_tujuan}`;
+                                text = `Reminder: Tenggat waktu pelaporan adalah ${tanggal}.\n\nNama Laporan: ${nama}\nPeriode: ${periode}\nTahun: ${tahun}\nInstansi Tujuan: ${instansi}`;
                     }
 
                     let transporter = null;

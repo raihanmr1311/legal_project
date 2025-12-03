@@ -2,68 +2,145 @@
 const express = require('express');
 const router = express.Router();
 const db = require('./db');
+const multer = require('multer');
+const upload = multer({ storage: multer.memoryStorage() });
 const nodemailer = require('nodemailer');
 const emailConfig = require('./emailConfig');
+// Upload to Google Drive disabled by request. Commenting out Drive helper require.
+// const { uploadFileStream } = require('./gdriveClient');
 
 router.get('/laporan', (req, res) => {
-    db.query('SELECT * FROM laporan', (err, results) => {
+    // Try to join with perseroan table to return perseroan (company) name when available.
+    let sql = `SELECT l.*, p.perseroan AS perseroan_name, p.id AS perseroan_id
+                 FROM laporan l
+                 LEFT JOIN perseroan p ON l.perseroan = p.id`;
+    const params = [];
+    if (req.query && req.query.perseroan_id) {
+        sql += ' WHERE l.perseroan = ?';
+        params.push(req.query.perseroan_id);
+    }
+    db.query(sql, params, (err, results) => {
         if (err) {
-            return res.status(500).json({ success: false, message: 'Gagal mengambil data laporan', error: err });
+            // Fallback to simple select if join fails for any reason
+            return db.query('SELECT * FROM laporan', (err2, results2) => {
+                if (err2) return res.status(500).json({ success: false, message: 'Gagal mengambil data laporan', error: err2 });
+                return res.json(results2);
+            });
         }
-        res.json(results);
+        // Normalize keys for frontend compatibility
+        const normalized = results.map(r => ({
+            ...r,
+            perseroan: r.perseroan_name || r.perseroan || (r.perseroan_id ? r.perseroan_id : ''),
+            nama_laporan: r.nama_laporan || r.jenis_laporan || '',
+            tahun_pelaporan: r.tahun_pelaporan || r.tahun_laporan || '',
+            tanggal_pelaporan: r.tanggal_pelaporan || r.tanggal_dikirim || '',
+            file: r.file || null,
+            email: r.email || null,
+            status: r.status || null
+        }));
+        res.json(normalized);
     });
 });
 
 router.post('/upload-file', (req, res) => {
+    console.log('POST /api/upload-file body:', req.body);
     const {
-        pj,
-        email,
-        nama_laporan,
+        perseroan,
+        perseroan_id,
+        jenis_laporan,
         periode_laporan,
-        tahun_pelaporan,
+        tahun_laporan,
         instansi_tujuan,
-        tanggal_pelaporan,
-        keterangan
+        tanggal_dikirim,
+        status,
+        file,
+        keterangan,
+        email
     } = req.body;
 
-    if (!pj || !email || !nama_laporan || !periode_laporan || !tahun_pelaporan || !instansi_tujuan || !tanggal_pelaporan) {
-        return res.json({ success: false, message: 'Semua field wajib diisi!' });
+    // Validate required fields for the new schema
+    if (!jenis_laporan || !periode_laporan || !tahun_laporan || !instansi_tujuan || !tanggal_dikirim) {
+        return res.status(400).json({ success: false, message: 'Field wajib: jenis_laporan, periode_laporan, tahun_laporan, instansi_tujuan, tanggal_dikirim' });
     }
 
-    const sql = `INSERT INTO laporan (pj, email, nama_laporan, periode_laporan, tahun_pelaporan, instansi_tujuan, tanggal_pelaporan, keterangan)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`;
-    db.query(sql, [pj, email, nama_laporan, periode_laporan, tahun_pelaporan, instansi_tujuan, tanggal_pelaporan, keterangan], async (err, result) => {
-        if (err) {
-            return res.json({ success: false, message: 'Gagal menyimpan ke database', error: err });
+    // Resolve perseroan: accept numeric id or lookup by perseroan name / username
+    const resolvePerseroanId = (val, cb) => {
+        if (!val) return cb(null, null);
+        // if already numeric id
+        if (typeof val === 'number' || String(val).match(/^\d+$/)) {
+            return cb(null, Number(val));
         }
-        res.json({ success: true });
-
-        (async () => {
-            try {
-                const { createAndVerifyTransporter, sendMailPromise } = require('./emailClient');
-
-                const adminSubject = 'Laporan Baru Telah Diinput';
-                const adminText = `Notifikasi: Ada laporan baru yang telah diinput oleh ${pj} (email: ${email}).\n\nNama Laporan: ${nama_laporan}\nPeriode: ${periode_laporan}\nTahun: ${tahun_pelaporan}\nInstansi Tujuan: ${instansi_tujuan}\nTanggal Tenggat: ${tanggal_pelaporan}`;
-                const userSubject = 'Reminder Tenggat Waktu Pelaporan';
-                const userText = `Reminder: Tenggat waktu untuk pelaporan Anda adalah pada tanggal ${tanggal_pelaporan}.\n\nPastikan Anda melakukan pelaporan sebelum tenggat waktu tersebut.\n\nDetail Laporan:\nNama Laporan: ${nama_laporan}\nPeriode: ${periode_laporan}\nTahun: ${tahun_pelaporan}\nInstansi Tujuan: ${instansi_tujuan}`;
-
-                let transporter = null;
-                try {
-                    transporter = await createAndVerifyTransporter();
-                    console.log('Background email: transporter available =', !!transporter);
-                } catch (e) {
-                    console.error('Failed to verify SMTP transporter for background email:', e && e.message ? e.message : e);
-                    transporter = null;
+        // Prefer looking up the perseroan table (normalized companies)
+        db.query('SELECT id FROM perseroan WHERE perseroan = ? LIMIT 1', [val], (err1, rows1) => {
+            if (err1) {
+                // fallback to older heuristics when perseroan table isn't available
+                const sql = 'SELECT id FROM users WHERE username = ? OR perseroan = ? LIMIT 1';
+                return db.query(sql, [val, val], (err2, rows2) => {
+                    if (err2) return cb(err2);
+                    if (rows2 && rows2.length) return cb(null, rows2[0].id);
+                    return cb(null, null);
+                });
+            }
+            if (rows1 && rows1.length) return cb(null, rows1[0].id);
+            // fallback: try matching username in users table
+            db.query('SELECT id, perseroan, perseroan_id FROM users WHERE username = ? LIMIT 1', [val], (err3, rows3) => {
+                if (err3) return cb(err3);
+                if (rows3 && rows3.length) {
+                    // if users.perseroan is numeric, return it; otherwise if users.perseroan_id exists, return that
+                    const u = rows3[0];
+                    if (u.perseroan_id) return cb(null, Number(u.perseroan_id));
+                    if (u.perseroan && String(u.perseroan).match(/^\d+$/)) return cb(null, Number(u.perseroan));
+                    return cb(null, null);
                 }
+                return cb(null, null);
+            });
+        });
+    };
 
-                const adminPromise = (async () => {
+    resolvePerseroanId(perseroan || perseroan_id, (err, resolvedPerseroanId) => {
+        if (err) {
+            console.error('Error resolving perseroan:', err && err.message ? err.message : err);
+            return res.status(500).json({ success: false, message: 'Gagal resolve perseroan', error: err && err.message ? err.message : String(err) });
+        }
+
+        // Database has `keterangan` now. Use a fixed INSERT and then send notifications asynchronously.
+        const insertSql = `INSERT INTO laporan (perseroan, jenis_laporan, periode_laporan, tahun_laporan, instansi_tujuan, tanggal_dikirim, status, file, email, keterangan)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+        const vals = [resolvedPerseroanId || null, jenis_laporan, periode_laporan, tahun_laporan, instansi_tujuan, tanggal_dikirim, status || 'pending', file || null, email || null, keterangan || null];
+
+        db.query(insertSql, vals, (err2, result) => {
+            if (err2) {
+                console.error('INSERT laporan failed:', err2 && err2.message ? err2.message : err2, { sql: insertSql, vals });
+                return res.status(500).json({ success: false, message: 'Gagal menyimpan ke database', error: err2 && err2.message ? err2.message : String(err2) });
+            }
+
+            res.json({ success: true, id: result.insertId });
+
+            // send background notifications (non-blocking) using correct variables
+            (async () => {
+                try {
+                    const { createAndVerifyTransporter, sendMailPromise } = require('./emailClient');
+
+                    const adminSubject = 'Laporan Baru Telah Diinput';
+                    const adminText = `Notifikasi: Ada laporan baru yang telah diinput${email ? ' (email: ' + email + ')' : ''}.\n\nJenis Laporan: ${jenis_laporan}\nPeriode: ${periode_laporan}\nTahun: ${tahun_laporan}\nInstansi Tujuan: ${instansi_tujuan}\nTanggal Dikirim: ${tanggal_dikirim}\nKeterangan: ${keterangan || ''}`;
+
+                    const userSubject = 'Konfirmasi Penerimaan Laporan';
+                    const userText = `Terima kasih. Laporan Anda telah diterima.\n\nJenis Laporan: ${jenis_laporan}\nPeriode: ${periode_laporan}\nTahun: ${tahun_laporan}\nTanggal Dikirim: ${tanggal_dikirim}\nKeterangan: ${keterangan || ''}`;
+
+                    let transporter = null;
                     try {
+                        transporter = await createAndVerifyTransporter();
+                        console.log('Background email: transporter available =', !!transporter);
+                    } catch (e) {
+                        console.error('Failed to verify SMTP transporter for background email:', e && e.message ? e.message : e);
+                        transporter = null;
+                    }
+
+                    const adminPromise = (async () => {
                         if (transporter && emailConfig.adminEmails && emailConfig.adminEmails.length) {
-                            console.log('Sending admin notification to', emailConfig.adminEmails);
                             for (const admin of emailConfig.adminEmails) {
                                 try {
-                                    const info = await sendMailPromise(transporter, { from: emailConfig.auth.user, to: admin, subject: adminSubject, text: adminText });
-                                    console.log('Admin sendMail result for', admin, { messageId: info && info.messageId, response: info && info.response });
+                                    await sendMailPromise(transporter, { from: emailConfig.auth.user, to: admin, subject: adminSubject, text: adminText });
                                 } catch (e) {
                                     console.error('Failed to send admin notification to', admin, e && e.message ? e.message : e);
                                 }
@@ -71,21 +148,16 @@ router.post('/upload-file', (req, res) => {
                         } else {
                             console.log('Admin notification skipped (no transporter or no admin emails)');
                         }
-                    } catch (e) {
-                        console.error('Failed to send admin notification email:', e && e.message ? e.message : e);
-                    }
-                })();
+                    })();
 
-                const userPromise = (async () => {
-                    try {
+                    const userPromise = (async () => {
                         if (email) {
-                            console.log('Sending user notification to', email);
                             if (transporter) {
                                 try {
-                                    const info = await sendMailPromise(transporter, { from: emailConfig.auth.user, to: email, subject: userSubject, text: userText });
-                                    console.log('User sendMail result:', { messageId: info && info.messageId, response: info && info.response });
+                                    await sendMailPromise(transporter, { from: emailConfig.auth.user, to: email, subject: userSubject, text: userText });
+                                    console.log('User notification sent to', email);
                                 } catch (e) {
-                                    console.error('Failed to send user notification email:', e && e.message ? e.message : e);
+                                    console.error('Failed to send user notification email to', email, e && e.message ? e.message : e);
                                 }
                             } else {
                                 console.log('User notification skipped (no transporter)');
@@ -93,51 +165,104 @@ router.post('/upload-file', (req, res) => {
                         } else {
                             console.log('User notification skipped (no user email)');
                         }
-                    } catch (e) {
-                        console.error('Failed to send user notification email:', e && e.message ? e.message : e);
-                    }
-                })();
+                    })();
 
-                await Promise.allSettled([adminPromise, userPromise]);
-            } catch (err) {
-                console.error('Unhandled error while sending notification emails:', err && err.message ? err.message : err);
-            }
-        })();
+                    await Promise.allSettled([adminPromise, userPromise]);
+                } catch (errNotify) {
+                    console.error('Unhandled error while sending notification emails:', errNotify && errNotify.message ? errNotify.message : errNotify);
+                }
+            })();
+        });
     });
 });
 
-module.exports = router;
- 
+// New: upload a file to Google Drive and return file metadata
+// Drive upload route disabled. To re-enable, restore the uploadFileStream require above
+// and uncomment the route implementation below.
+/*
+router.post('/upload-drive', upload.single('file'), async (req, res) => {
+    try {
+        if (!req.file) return res.status(400).json({ success: false, message: 'No file uploaded' });
+        const file = req.file;
+        const stream = require('stream');
+        const readStream = new stream.PassThrough();
+        readStream.end(file.buffer);
+        const gfile = await uploadFileStream({ filename: file.originalname, mimeType: file.mimetype, stream: readStream });
+        return res.json({ success: true, file: gfile });
+    } catch (err) {
+        console.error('Drive upload failed', err);
+        return res.status(500).json({ success: false, message: 'Upload to Drive failed', error: err && err.message ? err.message : String(err) });
+    }
+});
+*/
+
 router.put('/laporan/:id', (req, res) => {
     const id = req.params.id;
     const {
-        pj,
-        nama_laporan,
+        perseroan,
+        perseroan_id,
+        jenis_laporan,
         periode_laporan,
-        tahun_pelaporan,
+        tahun_laporan,
         instansi_tujuan,
-        tanggal_pelaporan,
+        tanggal_dikirim,
+        status,
+        file,
+        email,
         keterangan
     } = req.body;
-    if (!pj || !nama_laporan || !periode_laporan || !tahun_pelaporan || !instansi_tujuan || !tanggal_pelaporan) {
-        return res.json({ success: false, message: 'Semua field wajib diisi!' });
-    }
-    
-    db.query('SELECT tanggal_pelaporan FROM laporan WHERE id=?', [id], (err, rows) => {
+
+    // Fetch current tanggal to decide whether to reset reminders
+    db.query('SELECT tanggal_dikirim FROM laporan WHERE id=?', [id], (err, rows) => {
         if (err || !rows.length) {
-            return res.json({ success: false, message: 'Data tidak ditemukan', error: err });
+            return res.status(404).json({ success: false, message: 'Data tidak ditemukan', error: err });
         }
-        const oldTanggal = rows[0].tanggal_pelaporan;
+        const oldTanggal = rows[0].tanggal_dikirim;
+        const newTanggal = tanggal_dikirim || oldTanggal;
         let resetReminder = '';
-        if (oldTanggal !== tanggal_pelaporan) {
+        if (oldTanggal !== newTanggal) {
             resetReminder = ', reminder_h1_bulan_sent=0, reminder_h2_minggu_sent=0, reminder_h1_minggu_7_sent=0, reminder_h1_minggu_5_sent=0, reminder_h1_minggu_3_sent=0, reminder_h1_sent=0, reminder_h_sent=0';
         }
-        const sql = `UPDATE laporan SET pj=?, nama_laporan=?, periode_laporan=?, tahun_pelaporan=?, instansi_tujuan=?, tanggal_pelaporan=?, keterangan=?${resetReminder} WHERE id=?`;
-        db.query(sql, [pj, nama_laporan, periode_laporan, tahun_pelaporan, instansi_tujuan, tanggal_pelaporan, keterangan, id], (err2, result) => {
-            if (err2) {
-                return res.json({ success: false, message: 'Gagal update data', error: err2 });
-            }
-            res.json({ success: true });
+
+        const resolvePerseroanId = (val, cb) => {
+            if (!val) return cb(null, null);
+            if (typeof val === 'number' || String(val).match(/^\d+$/)) return cb(null, Number(val));
+            // prefer perseroan table
+            db.query('SELECT id FROM perseroan WHERE perseroan = ? LIMIT 1', [val], (err1, rows1) => {
+                if (err1) {
+                    return db.query('SELECT id FROM users WHERE username = ? LIMIT 1', [val], (err2, r) => {
+                        if (err2) return cb(err2);
+                        if (r && r.length) return cb(null, r[0].id);
+                        return cb(null, null);
+                    });
+                }
+                if (rows1 && rows1.length) return cb(null, rows1[0].id);
+                // fallback to users.username
+                db.query('SELECT id, perseroan, perseroan_id FROM users WHERE username = ? LIMIT 1', [val], (err3, rows3) => {
+                    if (err3) return cb(err3);
+                    if (rows3 && rows3.length) {
+                        const u = rows3[0];
+                        if (u.perseroan_id) return cb(null, Number(u.perseroan_id));
+                        if (u.perseroan && String(u.perseroan).match(/^\d+$/)) return cb(null, Number(u.perseroan));
+                        return cb(null, null);
+                    }
+                    return cb(null, null);
+                });
+            });
+        };
+
+        resolvePerseroanId(perseroan || perseroan_id, (errResolve, resolvedPerseroanId) => {
+            if (errResolve) return res.status(500).json({ success: false, message: 'Gagal resolve perseroan', error: errResolve && errResolve.message ? errResolve.message : errResolve });
+
+            const sql = `UPDATE laporan SET perseroan=?, jenis_laporan=?, periode_laporan=?, tahun_laporan=?, instansi_tujuan=?, tanggal_dikirim=?, status=?, file=?, email=?, keterangan=?${resetReminder} WHERE id=?`;
+            const vals = [resolvedPerseroanId || null, jenis_laporan || null, periode_laporan || null, tahun_laporan || null, instansi_tujuan || null, tanggal_dikirim || null, status || null, file || null, email || null, keterangan || null, id];
+            db.query(sql, vals, (err3, result) => {
+                if (err3) {
+                    console.error('UPDATE laporan failed:', err3 && err3.message ? err3.message : err3, { sql, vals });
+                    return res.status(500).json({ success: false, message: 'Gagal update data', error: err3 && err3.message ? err3.message : String(err3) });
+                }
+                res.json({ success: true });
+            });
         });
     });
 });
@@ -151,3 +276,5 @@ router.delete('/laporan/:id', (req, res) => {
         res.json({ success: true });
     });
 });
+
+module.exports = router;

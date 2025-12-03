@@ -16,16 +16,38 @@
             <h3 class="mb-4">Form Input Laporan BSP</h3>
             <form id="laporanForm" enctype="multipart/form-data">
                 <div class="mb-3">
-                    <label class="form-label">Penanggung Jawab</label>
-                    <input type="text" name="pj" class="form-control" required>
+                    <label class="form-label">Perseroan</label>
+                    <!-- Text input used for non-admin users (auto-filled & read-only).
+                        Remove native "required" so browser doesn't validate the hidden input
+                        when admin view hides it. Validation is handled in onsubmit. -->
+                    <input type="text" id="perseroanInput" class="form-control" aria-label="Perseroan (user)">
+                    <!-- Select used for admin users -->
+                    <select id="perseroanSelect" class="form-select" style="display:none;" required>
+                        <option value="">-- Pilih Perseroan --</option>
+                            <option value="2">PT. Bakrie Sumatera Plantations - Kisaran</option>
+                            <option value="3">PT. Grahadura Leidong Prima</option>
+                            <option value="4">PT. Bakrie Pasaman Plantations</option>
+                            <option value="5">PT. Ciptalaras Cipta Indonesia</option>
+                            <option value="6">PT. Agrowiyana</option>
+                            <option value="7">PT. Sumbertama Nusa Pertiwi</option>
+                            <option value="8">PT. Agro Mitra Madani</option>
+                            <option value="9">PT. Huma Indah Mekar</option>
+                            <option value="10">PT. Monrad Intan Barakat</option>
+                            <option value="1">BSP Corporate</option>
+                            <option value="11">PT. Air Muring</option>
+                    </select>
+                    <!-- Hidden fields that will actually be submitted: numeric id (both names for compatibility) -->
+                    <input type="hidden" id="perseroanHidden" name="perseroan">
+                    <input type="hidden" id="perseroanHiddenId" name="perseroan_id">
                 </div>
                     <div class="mb-3">
                         <label class="form-label">Email</label>
                         <input type="email" name="email" class="form-control" required>
                     </div>
                 <div class="mb-3">
-                    <label class="form-label">Nama Laporan</label>
-                    <input type="text" name="nama_laporan" class="form-control" required>
+                    <label class="form-label">Jenis Laporan</label>
+                    <input type="text" id="namaLaporanInput" name="nama_laporan" class="form-control" required>
+                    <input type="hidden" id="jenisLaporanHidden" name="jenis_laporan">
                 </div>
                 <div class="mb-3">
                     <label class="form-label">Periode Laporan</label>
@@ -33,7 +55,8 @@
                 </div>
                 <div class="mb-3">
                     <label class="form-label">Tahun Pelaporan</label>
-                    <input type="number" name="tahun_pelaporan" class="form-control" required>
+                    <input type="number" id="tahunPelaporanInput" name="tahun_pelaporan" class="form-control" required>
+                    <input type="hidden" id="tahunLaporanHidden" name="tahun_laporan">
                 </div>
                 <div class="mb-3">
                     <label class="form-label">Instansi Tujuan</label>
@@ -41,11 +64,23 @@
                 </div>
                 <div class="mb-3">
                     <label class="form-label">Tanggal Pelaporan</label>
-                    <input type="date" name="tanggal_pelaporan" class="form-control" required>
+                    <input type="date" id="tanggalPelaporanInput" name="tanggal_pelaporan" class="form-control" required>
+                    <input type="hidden" id="tanggalDikirimHidden" name="tanggal_dikirim">
                 </div>
                 <div class="mb-3">
                     <label class="form-label">Keterangan</label>
-                    <textarea name="keterangan" class="form-control"></textarea>
+                    <textarea id="keteranganInput" name="keterangan" class="form-control"></textarea>
+                </div>
+                <!-- File upload removed per developer request -->
+
+                <div class="mb-3">
+                    <label class="form-label">Status</label>
+                    <select name="status" class="form-select">
+                        <option value="">-- Pilih Status --</option>
+                        <option value="dikirim">Dikirim</option>
+                        <option value="pending">Pending</option>
+                        <option value="draft">Draft</option>
+                    </select>
                 </div>
 
                 <button type="submit" class="btn btn-primary">Kirim</button>
@@ -55,29 +90,203 @@
     </div>
 </div>
 <script>
+    // Auto-fill perseroan for logged-in non-admin users
+    document.addEventListener('DOMContentLoaded', function () {
+        try {
+            const role = localStorage.getItem('userRole') || 'guest';
+            let perseroanId = localStorage.getItem('perseroanId') || '';
+            let perseroanName = localStorage.getItem('perseroanName') || '';
+            console.log('DEBUG form-laporan: role=', role, 'userId=', localStorage.getItem('userId'), 'perseroanId=', perseroanId, 'perseroanName=', perseroanName);
+            const persEl = document.getElementById('perseroanInput');
+            const persSelect = document.getElementById('perseroanSelect');
+            const persHidden = document.getElementById('perseroanHidden');
+            const persHiddenId = document.getElementById('perseroanHiddenId');
+            if (persEl) {
+                if (role !== 'admin') {
+                    // show non-admin text input, hide select
+                    if (persSelect) persSelect.style.display = 'none';
+                    persEl.style.display = '';
+                    // If we don't have perseroanId stored but have userId, try fetch it from server
+                    if (!perseroanId) {
+                        const uid = localStorage.getItem('userId');
+                        if (uid) {
+                            fetch('/api/user?id=' + encodeURIComponent(uid))
+                                .then(r => r.json())
+                                .then(d => {
+                                    console.log('DEBUG /api/user response', d);
+                                    if (d && d.success && d.user) {
+                                        perseroanId = d.user.perseroan_id || '';
+                                        perseroanName = d.user.perseroan || '';
+                                        if (perseroanId) localStorage.setItem('perseroanId', perseroanId);
+                                        if (perseroanName) localStorage.setItem('perseroanName', perseroanName);
+                                        if (perseroanName) {
+                                            persEl.value = perseroanName;
+                                        } else if (perseroanId) {
+                                            // if we only have id, fetch the perseroan name
+                                            fetch('/api/perseroan?id=' + encodeURIComponent(perseroanId))
+                                                .then(r2 => r2.json())
+                                                .then(d2 => {
+                                                    if (d2 && d2.success && d2.perseroan) {
+                                                        perseroanName = d2.perseroan.perseroan || '';
+                                                        localStorage.setItem('perseroanName', perseroanName);
+                                                        persEl.value = perseroanName;
+                                                    } else {
+                                                        persEl.value = perseroanId;
+                                                    }
+                                                })
+                                                .catch(() => { persEl.value = perseroanId; });
+                                        }
+                                        persEl.readOnly = true;
+                                        persEl.classList.add('bg-light');
+                                        if (persHidden) persHidden.value = perseroanId || '';
+                                        if (persHiddenId) persHiddenId.value = perseroanId || '';
+                                    } else {
+                                        console.warn('DEBUG: /api/user returned no perseroan', d);
+                                    }
+                                })
+                                .catch(err => console.error('Failed to fetch user perseroan:', err));
+                        }
+                    } else {
+                        // Always try to refresh the company name from the server when we have an id
+                        if (perseroanId) {
+                            console.debug('Auto-fetch perseroan name for id=', perseroanId);
+                            fetch('/api/perseroan?id=' + encodeURIComponent(perseroanId))
+                                .then(r2 => r2.json())
+                                .then(d2 => {
+                                    console.debug('Auto-fetch perseroan response', d2);
+                                    if (d2 && d2.success && d2.perseroan) {
+                                        perseroanName = d2.perseroan.perseroan || '';
+                                        localStorage.setItem('perseroanName', perseroanName);
+                                        persEl.value = perseroanName;
+                                    } else {
+                                        // fallback to stored name or empty
+                                        persEl.value = perseroanName && perseroanName !== String(perseroanId) ? perseroanName : '';
+                                    }
+                                })
+                                .catch(err => {
+                                    console.error('Auto-fetch perseroan failed', err);
+                                    persEl.value = perseroanName && perseroanName !== String(perseroanId) ? perseroanName : '';
+                                });
+                        } else {
+                            persEl.value = perseroanName || '';
+                        }
+                        persEl.readOnly = true; // prevent changes for non-admins
+                        persEl.classList.add('bg-light');
+                        if (persHidden) persHidden.value = perseroanId || '';
+                        if (persHiddenId) persHiddenId.value = perseroanId || '';
+                    }
+                } else {
+                    // admin: show select, hide text input
+                    if (persSelect) persSelect.style.display = '';
+                    persEl.style.display = 'none';
+                    // if we have stored perseroanId, select it if present
+                    if (perseroanId && persSelect) {
+                        for (const opt of Array.from(persSelect.options)) {
+                            if (opt.value === perseroanId) opt.selected = true;
+                        }
+                        if (persHidden) persHidden.value = perseroanId;
+                        if (persHiddenId) persHiddenId.value = perseroanId;
+                    }
+                }
+            }
+            // keep select -> hidden sync when admin changes selection
+            if (persSelect) {
+                persSelect.addEventListener('change', function () {
+                    if (persHidden) persHidden.value = persSelect.value;
+                    if (persHiddenId) persHiddenId.value = persSelect.value;
+                });
+            }
+        } catch (e) {
+            console.error('Failed to auto-fill perseroan:', e && e.message ? e.message : e);
+        }
+    });
+
     document.getElementById('laporanForm').onsubmit = async function(e) {
         e.preventDefault();
         const form = e.target;
+        const msgDiv = document.getElementById('resultMsg');
+        if (msgDiv) msgDiv.innerHTML = '';
+        // populate compatibility hidden fields (keep both old/new names)
+        const perseroanVal = document.getElementById('perseroanInput').value;
+        const namaVal = document.getElementById('namaLaporanInput').value;
+        const tahunVal = document.getElementById('tahunPelaporanInput').value;
+        const tanggalVal = document.getElementById('tanggalPelaporanInput').value;
+        document.getElementById('jenisLaporanHidden').value = namaVal;
+        document.getElementById('tahunLaporanHidden').value = tahunVal;
+        document.getElementById('tanggalDikirimHidden').value = tanggalVal;
+
+        // Ensure hidden perseroan value is up-to-date before building form data
+        try {
+            const persSelect = document.getElementById('perseroanSelect');
+            const persEl = document.getElementById('perseroanInput');
+            const persHidden = document.getElementById('perseroanHidden');
+            const persHiddenId = document.getElementById('perseroanHiddenId');
+            if (persHidden) {
+                if (persSelect && persSelect.style.display !== 'none' && persSelect.value) {
+                    persHidden.value = persSelect.value;
+                    if (persHiddenId) persHiddenId.value = persSelect.value;
+                } else if (persEl && persEl.style.display !== 'none') {
+                    // non-admin: persEl shows name, hidden fields must contain the numeric id
+                    // leave persHidden as id (populated earlier), but if it's empty try to derive from localStorage
+                    const pid = localStorage.getItem('perseroanId') || '';
+                    if (pid) {
+                        persHidden.value = pid;
+                        if (persHiddenId) persHiddenId.value = pid;
+                    }
+                }
+            }
+        } catch (e) {
+            console.error('Failed to sync perseroan before submit', e);
+        }
+
+        // Validate that we have a perseroan id to submit (either from select or stored id)
+        const finalPersId = (document.getElementById('perseroanHiddenId') && document.getElementById('perseroanHiddenId').value) ||
+                            (document.getElementById('perseroanHidden') && document.getElementById('perseroanHidden').value) ||
+                            localStorage.getItem('perseroanId') || '';
+        if (!finalPersId) {
+            if (msgDiv) {
+                msgDiv.innerHTML = '<div class="alert alert-danger">Silakan pilih Perseroan terlebih dahulu.</div>';
+            } else {
+                alert('Silakan pilih Perseroan terlebih dahulu.');
+            }
+            return;
+        }
+
         const formData = new FormData(form);
         // Ubah FormData ke objek JSON
         const data = {};
         formData.forEach((value, key) => {
             data[key] = value;
         });
+        // ensure compatibility: populate perseroan_id from perseroan if missing
+        if (!data.perseroan_id && data.perseroan) data.perseroan_id = data.perseroan;
         const response = await fetch('/api/upload-file', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(data)
         });
         const result = await response.json();
-        const msgDiv = document.getElementById('resultMsg');
         if(result.success) {
-            msgDiv.innerHTML = '<div class="alert alert-success">Laporan berhasil diupload!</div>';
+            if (msgDiv) msgDiv.innerHTML = '<div class="alert alert-success">Laporan berhasil diupload!</div>';
             form.reset();
         } else {
-            msgDiv.innerHTML = '<div class="alert alert-danger">Gagal upload: ' + (result.message || 'Unknown error') + '</div>';
+            if (msgDiv) msgDiv.innerHTML = '<div class="alert alert-danger">Gagal upload: ' + (result.message || 'Unknown error') + '</div>';
         }
     }
+
+    /* File upload handler disabled by developer request.
+       To re-enable, restore the file input in the form and uncomment the upload code.
+    
+    // Previously this block attached a change listener to #fileUploadInput and posted files
+    // to /api/upload-drive. Uploads are currently disabled. */
 </script>
+    <footer class="site-footer mt-4 py-3 text-center text-muted">
+        <div class="container d-flex justify-content-center align-items-center gap-2">
+            <div>© SItem Pelaporan BSP</div>
+        </div>
+    </footer>
+    <style>
+        .site-footer{background:transparent;font-size:0.95rem}
+    </style>
 </body>
 </html>

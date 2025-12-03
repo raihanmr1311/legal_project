@@ -1,14 +1,17 @@
+// If user is not logged in, send them to the dedicated login page immediately
+document.addEventListener('DOMContentLoaded', function() {
+    if (!isLoggedIn()) {
+        window.location.href = 'login.html';
+        return;
+    }
+});
+
 document.addEventListener('DOMContentLoaded', function() {
     var tambahBtn = document.getElementById('tambahLaporanBtn');
     if (tambahBtn) {
+        // Since the app now forces login on page entry, the button can directly go to the form
         tambahBtn.addEventListener('click', function() {
-            if (!isLoggedIn()) {
-                showLoginModal(function() {
-                    window.location.href = 'form-laporan.html';
-                });
-            } else {
-                window.location.href = 'form-laporan.html';
-            }
+            window.location.href = 'form-laporan.html';
         });
     }
 });
@@ -25,30 +28,43 @@ function highlight(text, keyword) {
     return text.replace(regex, '<span class="highlight">$1</span>');
 }
 
+function getUserRole() {
+    return localStorage.getItem('userRole') || 'guest';
+}
+
+function isAdmin() {
+    return getUserRole() === 'admin';
+}
+
 function renderTable(data) {
     const tbody = document.querySelector("#laporanTable tbody");
     tbody.innerHTML = '';
     if (data.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted">Tidak ada data ditemukan</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="12" class="text-center text-muted">Tidak ada data ditemukan</td></tr>';
         return;
     }
     data.forEach((laporan, idx) => {
         const tr = document.createElement("tr");
+        const actions = [];
+        actions.push('<button class="btn btn-sm btn-info me-1" title="Lihat Detail" onclick="detailLaporan(' + idx + ')"><i class="bi bi-eye"></i></button>');
+        if (isAdmin()) {
+            actions.push('<button class="btn btn-sm btn-primary me-1" title="Edit" onclick="editLaporan(' + idx + ')"><i class="bi bi-pencil"></i></button>');
+            actions.push('<button class="btn btn-sm btn-danger" title="Hapus" onclick="hapusLaporan(' + idx + ')"><i class="bi bi-trash"></i></button>');
+        }
+
         tr.innerHTML =
             '<td>' + (idx + 1) + '</td>' +
-            '<td>' + highlight(laporan['pj'] || '', searchKeyword) + '</td>' +
+            '<td>' + highlight(laporan['perseroan'] || laporan['perseroan_id'] || '', searchKeyword) + '</td>' +
             '<td>' + highlight(laporan['email'] || '', searchKeyword) + '</td>' +
-            '<td>' + highlight(laporan['Nama Laporan'] || '', searchKeyword) + '</td>' +
+            '<td>' + highlight(laporan['Jenis Laporan'] || laporan['Nama Laporan'] || '', searchKeyword) + '</td>' +
             '<td>' + highlight(laporan['Periode Laporan'] || '', searchKeyword) + '</td>' +
-            '<td>' + highlight(laporan['Tahun Pelaporan'] || '', searchKeyword) + '</td>' +
+            '<td>' + highlight(laporan['Tahun Laporan'] || laporan['Tahun Pelaporan'] || '', searchKeyword) + '</td>' +
             '<td>' + highlight(laporan['Instansi Tujuan'] || '', searchKeyword) + '</td>' +
-            '<td>' + highlight(formatTanggal(laporan['Tanggal Pelaporan'] || laporan['tanggal_pelaporan'] || ''), searchKeyword) + '</td>' +
+            '<td>' + highlight(formatTanggal(laporan['Tanggal Dikirim'] || laporan['Tanggal Pelaporan'] || laporan['tanggal_pelaporan'] || laporan['tanggal_dikirim'] || ''), searchKeyword) + '</td>' +
+            '<td>' + highlight(laporan['Status'] || laporan['status'] || '-', searchKeyword) + '</td>' +
             '<td>' + (laporan['Keterangan'] ? highlight(laporan['Keterangan'], searchKeyword) : '-') + '</td>' +
-            '<td>' +
-                '<button class="btn btn-sm btn-info me-1" title="Lihat Detail" onclick="detailLaporan(' + idx + ')"><i class="bi bi-eye"></i></button>' +
-                '<button class="btn btn-sm btn-primary me-1" title="Edit" onclick="editLaporan(' + idx + ')"><i class="bi bi-pencil"></i></button>' +
-                '<button class="btn btn-sm btn-danger" title="Hapus" onclick="hapusLaporan(' + idx + ')"><i class="bi bi-trash"></i></button>' +
-            '</td>';
+            '<td>' + (laporan['File'] ? ('<a href="' + laporan['File'] + '" target="_blank">' + stripHtml(laporan['File']) + '</a>') : '-') + '</td>' +
+            '<td>' + actions.join('') + '</td>';
         tbody.appendChild(tr);
     });
 }
@@ -57,14 +73,16 @@ function renderTable(data) {
     const laporan = filteredData[idx];
     if (!laporan) return;
     let html = '';
-    html += '<div class="mb-2"><strong>Penanggung Jawab:</strong> ' + (laporan['pj'] || '-') + '</div>';
-    html += '<div class="mb-2"><strong>Nama Laporan:</strong> ' + (laporan['Nama Laporan'] || '-') + '</div>';
-    html += '<div class="mb-2"><strong>Periode Laporan:</strong> ' + (laporan['Periode Laporan'] || '-') + '</div>';
-    html += '<div class="mb-2"><strong>Tahun Pelaporan:</strong> ' + (laporan['Tahun Pelaporan'] || '-') + '</div>';
-    html += '<div class="mb-2"><strong>Instansi Tujuan:</strong> ' + (laporan['Instansi Tujuan'] || '-') + '</div>';
-    const tanggalForDisplay = formatTanggal(laporan['Tanggal Pelaporan'] || laporan['tanggal_pelaporan'] || '');
-    html += '<div class="mb-2"><strong>Tanggal Pelaporan:</strong> ' + (tanggalForDisplay || '-') + '</div>';
-    html += '<div class="mb-2"><strong>Keterangan:</strong> ' + (laporan['Keterangan'] || '-') + '</div>';
+        html += '<div class="mb-2"><strong>Perseroan:</strong> ' + (laporan['perseroan'] || laporan['perseroan_id'] || '-') + '</div>';
+        html += '<div class="mb-2"><strong>Jenis Laporan:</strong> ' + (laporan['Jenis Laporan'] || laporan['Nama Laporan'] || '-') + '</div>';
+        html += '<div class="mb-2"><strong>Periode Laporan:</strong> ' + (laporan['Periode Laporan'] || '') + '</div>';
+        html += '<div class="mb-2"><strong>Tahun Laporan:</strong> ' + (laporan['Tahun Laporan'] || laporan['Tahun Pelaporan'] || '-') + '</div>';
+        html += '<div class="mb-2"><strong>Instansi Tujuan:</strong> ' + (laporan['Instansi Tujuan'] || '') + '</div>';
+        const tanggalForDisplay = formatTanggal(laporan['Tanggal Dikirim'] || laporan['Tanggal Pelaporan'] || laporan['tanggal_pelaporan'] || laporan['tanggal_dikirim'] || '');
+        html += '<div class="mb-2"><strong>Tanggal Dikirim:</strong> ' + (tanggalForDisplay || '-') + '</div>';
+        html += '<div class="mb-2"><strong>Status:</strong> ' + (laporan['Status'] || laporan['status'] || '-') + '</div>';
+        html += '<div class="mb-2"><strong>Keterangan:</strong> ' + (laporan['Keterangan'] || '-') + '</div>';
+        html += '<div class="mb-2"><strong>File:</strong> ' + (laporan['File'] ? ('<a href="' + laporan['File'] + '" target="_blank">' + stripHtml(laporan['File']) + '</a>') : '-') + '</div>';
     document.getElementById('detailModalBody').innerHTML = html;
     const modal = new bootstrap.Modal(document.getElementById('detailModal'));
     modal.show();
@@ -77,20 +95,38 @@ globalThis.editLaporan = function(idx) {
         });
         return;
     }
+    if (!isAdmin()) {
+        alert('Aksi ini hanya untuk admin.');
+        return;
+    }
     const laporan = filteredData[idx];
     if (!laporan) {
         alert('Data tidak ditemukan!');
         return;
     }
     let html = '';
-    html += '<div class="mb-2"><label class="form-label">Penanggung Jawab</label><input type="text" class="form-control" name="pj" value="' + (laporan['pj'] || '') + '" required></div>';
-    html += '<div class="mb-2"><label class="form-label">Nama Laporan</label><input type="text" class="form-control" name="nama_laporan" value="' + (laporan['Nama Laporan'] || '') + '" required></div>';
+    html += '<div class="mb-2"><label class="form-label">Perseroan</label><input type="text" class="form-control" name="perseroan" value="' + (laporan['perseroan'] || '') + '" required></div>';
+    html += '<div class="mb-2"><label class="form-label">Jenis Laporan</label><input type="text" class="form-control" name="jenis_laporan" value="' + (laporan['Jenis Laporan'] || laporan['Nama Laporan'] || '') + '" required></div>';
     html += '<div class="mb-2"><label class="form-label">Periode Laporan</label><input type="text" class="form-control" name="periode_laporan" value="' + (laporan['Periode Laporan'] || '') + '" required></div>';
-    html += '<div class="mb-2"><label class="form-label">Tahun Pelaporan</label><input type="text" class="form-control" name="tahun_pelaporan" value="' + (laporan['Tahun Pelaporan'] || '') + '" required></div>';
+    html += '<div class="mb-2"><label class="form-label">Tahun Laporan</label><input type="text" class="form-control" name="tahun_laporan" value="' + (laporan['Tahun Laporan'] || laporan['Tahun Pelaporan'] || '') + '" required></div>';
     html += '<div class="mb-2"><label class="form-label">Instansi Tujuan</label><input type="text" class="form-control" name="instansi_tujuan" value="' + (laporan['Instansi Tujuan'] || '') + '" required></div>';
-    let tglValue = (laporan['Tanggal Pelaporan'] || '').slice(0, 10);
-    html += '<div class="mb-2"><label class="form-label">Tanggal Pelaporan</label><input type="date" class="form-control" name="tanggal_pelaporan" value="' + tglValue + '" required></div>';
+    let tglValue = (laporan['Tanggal Dikirim'] || laporan['Tanggal Pelaporan'] || laporan['tanggal_pelaporan'] || laporan['tanggal_dikirim'] || '').slice(0,10);
+    html += '<div class="mb-2"><label class="form-label">Tanggal Dikirim</label><input type="date" class="form-control" name="tanggal_dikirim" value="' + tglValue + '" required></div>';
     html += '<div class="mb-2"><label class="form-label">Keterangan</label><input type="text" class="form-control" name="keterangan" value="' + (laporan['Keterangan'] || '') + '"></div>';
+        // File input removed from edit modal per request
+        // show current file as read-only link instead (if present)
+        if (laporan['File']) {
+                html += '<div class="mb-2"><label class="form-label">File</label><div><a href="' + laporan['File'] + '" target="_blank">' + stripHtml(laporan['File']) + '</a></div></div>';
+        }
+        // Status as dropdown
+        const currentStatus = laporan['Status'] || laporan['status'] || '';
+        html += '<div class="mb-2"><label class="form-label">Status</label>' +
+                        '<select class="form-select" name="status">' +
+                            '<option value="">-- Pilih Status --</option>' +
+                            '<option value="dikirim"' + (currentStatus === 'dikirim' ? ' selected' : '') + '>Dikirim</option>' +
+                            '<option value="pending"' + (currentStatus === 'pending' ? ' selected' : '') + '>Pending</option>' +
+                            '<option value="draft"' + (currentStatus === 'draft' ? ' selected' : '') + '>Draft</option>' +
+                        '</select></div>';
     document.getElementById('editModalBody').innerHTML = html;
     
     setTimeout(function() {
@@ -103,17 +139,19 @@ globalThis.editLaporan = function(idx) {
         editForm.parentNode.replaceChild(newForm, editForm);
         const modal = new bootstrap.Modal(document.getElementById('editModal'));
         modal.show();
-        newForm.onsubmit = function(e) {
+            newForm.onsubmit = function(e) {
             e.preventDefault();
             const form = e.target;
             const data = {
-                pj: form.pj.value,
-                nama_laporan: form.nama_laporan.value,
+                perseroan: form.perseroan.value,
+                jenis_laporan: form.jenis_laporan.value,
                 periode_laporan: form.periode_laporan.value,
-                tahun_pelaporan: form.tahun_pelaporan.value,
+                tahun_laporan: form.tahun_laporan.value,
                 instansi_tujuan: form.instansi_tujuan.value,
-                tanggal_pelaporan: form.tanggal_pelaporan.value,
-                keterangan: form.keterangan.value
+                tanggal_dikirim: form.tanggal_dikirim.value,
+                keterangan: form.keterangan.value,
+                file: form.file ? form.file.value : '',
+                status: form.status ? form.status.value : ''
             };
             fetch('/api/laporan/' + laporan.id, {
                 method: 'PUT',
@@ -122,16 +160,19 @@ globalThis.editLaporan = function(idx) {
             })
             .then(res => res.json())
             .then(res => {
-                if (res.success) {
-                    Object.assign(laporan, {
-                        pj: data.pj,
-                        'Nama Laporan': data.nama_laporan,
-                        'Periode Laporan': data.periode_laporan,
-                        'Tahun Pelaporan': data.tahun_pelaporan,
-                        'Instansi Tujuan': data.instansi_tujuan,
-                        'Tanggal Pelaporan': data.tanggal_pelaporan,
-                        'Keterangan': data.keterangan
-                    });
+                        if (res.success) {
+                            Object.assign(laporan, {
+                                perseroan: data.perseroan || laporan.perseroan,
+                                'Jenis Laporan': data.jenis_laporan,
+                                'Periode Laporan': data.periode_laporan,
+                                'Tahun Laporan': data.tahun_laporan,
+                                'Instansi Tujuan': data.instansi_tujuan,
+                                'Tanggal Pelaporan': data.tanggal_dikirim,
+                                'Tanggal Dikirim': data.tanggal_dikirim,
+                                'Keterangan': data.keterangan,
+                                'File': (typeof data.file !== 'undefined' && data.file !== '') ? data.file : (laporan['File'] || ''),
+                                'Status': data.status || laporan['Status'] || laporan['status']
+                            });
                     const idxInLaporanData = laporanData.findIndex(lap => lap.id === laporan.id);
                     if (idxInLaporanData !== -1) {
                         Object.assign(laporanData[idxInLaporanData], laporan);
@@ -159,10 +200,14 @@ globalThis.hapusLaporan = function(idx) {
     
     const laporan = filteredData[idx];
     let html = 'Apakah Anda yakin ingin menghapus data ini?';
+    if (!isAdmin()) {
+        alert('Aksi ini hanya untuk admin.');
+        return;
+    }
     if (laporan) {
         html += '<hr class="my-2">';
         html += '<div><strong>Nama Laporan:</strong> ' + (laporan['Nama Laporan'] || '-') + '</div>';
-        html += '<div><strong>Penanggung Jawab:</strong> ' + (laporan['pj'] || '-') + '</div>';
+        html += '<div><strong>Perseroan:</strong> ' + (laporan['perseroan'] || '-') + '</div>';
         html += '<div><strong>Periode:</strong> ' + (laporan['Periode Laporan'] || '-') + '</div>';
         html += '<div><strong>Tahun:</strong> ' + (laporan['Tahun Pelaporan'] || '-') + '</div>';
     }
@@ -240,18 +285,16 @@ function showLoginModal(callback) {
                 body: JSON.stringify({ username: user, password: pass })
             })
             .then(res => res.json())
-            .then(data => {
-                if (data.success && data.role === 'admin') {
-                    localStorage.setItem('isLoggedIn', 'true');
-                    modal.hide();
-                    if (typeof callback === 'function') callback();
-                } else if (data.success) {
-                    document.getElementById('loginError').textContent = 'Hanya admin yang diizinkan.';
-                    document.getElementById('loginError').style.display = 'block';
-                } else {
-                    document.getElementById('loginError').textContent = data.message || 'Username atau password salah!';
-                    document.getElementById('loginError').style.display = 'block';
-                }
+                .then(data => {
+                    if (data.success) {
+                        localStorage.setItem('isLoggedIn', 'true');
+                        localStorage.setItem('userRole', data.role || 'user');
+                        modal.hide();
+                        if (typeof callback === 'function') callback();
+                    } else {
+                        document.getElementById('loginError').textContent = data.message || 'Username atau password salah!';
+                        document.getElementById('loginError').style.display = 'block';
+                    }
             })
             .catch(() => {
                 document.getElementById('loginError').textContent = 'Gagal terhubung ke server.';
@@ -337,32 +380,73 @@ function filterData() {
     const keyword = searchKeyword.toLowerCase();
     return laporanData.filter(laporan =>
         Object.values(laporan).some(
-            val => val.toLowerCase().includes(keyword)
+            val => String(val || '').toLowerCase().includes(keyword)
         )
     );
 }
 
-fetch('/api/laporan')
+let laporanUrl = '/api/laporan';
+if (!isAdmin()) {
+    const pid = localStorage.getItem('perseroanId');
+    if (pid) laporanUrl += '?perseroan_id=' + encodeURIComponent(pid);
+}
+fetch(laporanUrl)
     .then(response => response.json())
-    .then(data => {
+    .then(async data => {
+        // initial mapping
         laporanData = data.map(laporan => ({
             id: laporan.id,
-            pj: laporan.pj || '',
+            perseroan: laporan.perseroan || '',
             email: laporan.email || '',
-            'Nama Laporan': laporan.nama_laporan || '',
+            'Jenis Laporan': laporan.jenis_laporan || laporan.nama_laporan || '',
+            'File': laporan.file || '',
             'Periode Laporan': laporan.periode_laporan || '',
-            'Tahun Pelaporan': laporan.tahun_pelaporan || '',
+            'Tahun Laporan': laporan.tahun_laporan || laporan.tahun_pelaporan || '',
+            'Tahun Pelaporan': laporan.tahun_pelaporan || laporan.tahun_laporan || '',
             'Instansi Tujuan': laporan.instansi_tujuan || '',
-            'Tanggal Pelaporan': laporan.tanggal_pelaporan || '',
-            'Keterangan': laporan.keterangan || ''
+            'Tanggal Pelaporan': laporan.tanggal_pelaporan || laporan.tanggal_dikirim || '',
+            'Tanggal Dikirim': laporan.tanggal_dikirim || laporan.tanggal_pelaporan || '',
+            'Keterangan': laporan.keterangan || '',
+            'Status': laporan.status || ''
         }));
+
+        // Collect numeric perseroan ids that are currently shown as numbers
+        const numericIds = new Set();
+        laporanData.forEach(l => {
+            const v = String(l.perseroan || '');
+            if (v && /^\d+$/.test(v)) numericIds.add(v);
+        });
+
+        if (numericIds.size > 0) {
+            // Fetch names for each id and build a map
+            const idArray = Array.from(numericIds);
+            try {
+                const promises = idArray.map(id => fetch('/api/perseroan?id=' + encodeURIComponent(id)).then(r => r.json()).catch(() => null));
+                const results = await Promise.all(promises);
+                const nameMap = {};
+                results.forEach((res, idx) => {
+                    const id = idArray[idx];
+                    if (res && res.success && res.perseroan && res.perseroan.perseroan) {
+                        nameMap[id] = res.perseroan.perseroan;
+                    }
+                });
+                // Replace numeric perseroan with names where available
+                laporanData = laporanData.map(l => ({
+                    ...l,
+                    perseroan: (String(l.perseroan) && nameMap[String(l.perseroan)]) ? nameMap[String(l.perseroan)] : l.perseroan
+                }));
+            } catch (e) {
+                console.warn('Failed to resolve perseroan names for numeric ids', e);
+            }
+        }
+
         filteredData = laporanData;
         updateTableDisplay();
     })
     .catch(error => {
         console.error("Gagal memuat data:", error);
         const tbody = document.querySelector("#laporanTable tbody");
-        tbody.innerHTML = '<tr><td colspan="7" class="text-danger text-center">Gagal memuat data laporan</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="11" class="text-danger text-center">Gagal memuat data laporan</td></tr>';
     });
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -399,13 +483,15 @@ function setExportHandler(dataToShow) {
     exportBtn.onclick = function () {
         
         const cleanData = dataToShow.map(laporan => ({
-            "Penanggung Jawab": stripHtml(laporan['pj']),
-            "Nama Laporan": stripHtml(laporan['Nama Laporan']),
+            "Perseroan": stripHtml(laporan['perseroan'] || ''),
+            "Jenis Laporan": stripHtml(laporan['Jenis Laporan'] || laporan['Nama Laporan'] || ''),
             "Periode Laporan": stripHtml(laporan['Periode Laporan']),
-            "Tahun Pelaporan": stripHtml(laporan['Tahun Pelaporan']),
+            "Tahun Pelaporan": stripHtml(laporan['Tahun Laporan']),
             "Instansi Tujuan": stripHtml(laporan['Instansi Tujuan']),
             "Tanggal Pelaporan": stripHtml(laporan['Tanggal Pelaporan']),
-            "Keterangan": stripHtml(laporan['Keterangan'])
+            "Status": stripHtml(laporan['Status'] || laporan['status'] || ''),
+            "Keterangan": stripHtml(laporan['Keterangan']),
+            "File": stripHtml(laporan['File'] || '')
         }));
 
         const ws = XLSX.utils.json_to_sheet(cleanData);

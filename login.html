@@ -17,49 +17,96 @@
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="row justify-content-center">
-            <div class="col-md-6">
-                <div class="login-card">
-                    <h2 class="text-center mb-4">Login</h2>
-                    <form id="loginForm">
-                        <div class="mb-3">
-                            <label for="username" class="form-label">Username</label>
-                            <input type="text" class="form-control" id="username" required>
-                        </div>
-                        <div class="mb-3">
-                            <label for="password" class="form-label">Password</label>
+    <div class="vh-100 d-flex align-items-center justify-content-center">
+        <div class="login-wrapper text-center">
+            <img src="Assets/img/logo.png" alt="SItem Pelaporan BSP" class="mb-1 login-logo" style="height:72px; object-fit:contain">
+            <div class="login-site-title fw-bold fs-5 mb-3">SItem Pelaporan BSP</div>
+            <div class="login-card mx-auto shadow-sm">
+
+                <p class="text-muted small mb-3">Silakan login dengan akun Anda.</p>
+                <form id="loginForm">
+                    <div class="mb-3 text-start">
+                        <label for="username" class="form-label">Username</label>
+                        <input type="text" class="form-control" id="username" required>
+                    </div>
+                    <div class="mb-3 text-start">
+                        <label for="password" class="form-label">Password</label>
+                        <div class="input-group">
                             <input type="password" class="form-control" id="password" required>
+                            <button type="button" class="btn btn-outline-secondary" id="togglePwd" tabindex="-1">
+                                <i class="bi bi-eye" id="togglePwdIcon"></i>
+                            </button>
                         </div>
-                        <button type="submit" class="btn btn-primary w-100">Login</button>
-                        <div id="loginError" class="text-danger text-center mt-3" style="display:none;"></div>
-                    </form>
-                </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100" id="loginBtn">Masuk</button>
+                    <div id="loginError" class="text-danger text-center mt-3" style="display:none;"></div>
+                </form>
             </div>
         </div>
     </div>
+    <footer class="site-footer mt-4 py-3 text-center text-muted">
+        <div class="container d-flex justify-content-center align-items-center gap-2">
+            <div>© SItem Pelaporan BSP</div>
+        </div>
+    </footer>
+    <style>
+        .site-footer{background:transparent;font-size:0.95rem}
+    </style>
+        </div>
+    </div>
     <script>
+    // Toggle password visibility
+    document.getElementById('togglePwd').addEventListener('click', function() {
+        const pwd = document.getElementById('password');
+        const icon = document.getElementById('togglePwdIcon');
+        if (pwd.type === 'password') { pwd.type = 'text'; icon.classList.remove('bi-eye'); icon.classList.add('bi-eye-slash'); }
+        else { pwd.type = 'password'; icon.classList.remove('bi-eye-slash'); icon.classList.add('bi-eye'); }
+    });
+
     document.getElementById('loginForm').addEventListener('submit', async function(e) {
         e.preventDefault();
-        const username = document.getElementById('username').value;
+        const loginBtn = document.getElementById('loginBtn');
+        loginBtn.disabled = true;
+        const origText = loginBtn.textContent;
+        loginBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Memproses...';
+
+        const username = document.getElementById('username').value.trim();
         const password = document.getElementById('password').value;
-        const res = await fetch('/api/login', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username, password })
-        });
-        const data = await res.json();
-        if(data.success && data.role === 'admin') {
-            localStorage.setItem('isLoggedIn', 'true');
-            window.location.href = '/main.html';
-        } else if(data.success) {
+        try {
+            const res = await fetch('/api/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password })
+            });
+            const data = await res.json();
+            if (data.success) {
+                localStorage.setItem('isLoggedIn', 'true');
+                localStorage.setItem('userRole', data.role || 'user');
+                if (data.userId) localStorage.setItem('userId', String(data.userId));
+                if (data.perseroan) localStorage.setItem('perseroanName', data.perseroan);
+                if (typeof data.perseroan_id !== 'undefined' && data.perseroan_id !== null) localStorage.setItem('perseroanId', String(data.perseroan_id));
+                window.location.href = '/main.html';
+            } else {
+                document.getElementById('loginError').style.display = 'block';
+                document.getElementById('loginError').textContent = data.message || 'Login gagal';
+            }
+            
+        } catch (err) {
             document.getElementById('loginError').style.display = 'block';
-            document.getElementById('loginError').textContent = 'Hanya admin yang diizinkan login.';
-        } else {
-            document.getElementById('loginError').style.display = 'block';
-            document.getElementById('loginError').textContent = data.message || 'Login gagal';
+            document.getElementById('loginError').textContent = 'Gagal terhubung ke server.';
+        } finally {
+            loginBtn.disabled = false;
+            loginBtn.textContent = origText;
         }
     });
     </script>
+    <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
+    body{font-family:Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial}
+    .login-wrapper{max-width:420px;width:100%;padding:24px}
+    .login-logo{height:72px;object-fit:contain}
+    .login-card{background:#fff;border-radius:14px;padding:22px}
+    body{background:linear-gradient(135deg,#f0f6ff 0%,#f8fbff 60%)}
+    </style>
 </body>
 </html>

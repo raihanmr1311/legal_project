@@ -30,6 +30,10 @@ app.use(bodyParser.json());
 const formRouter = require('./form');
 app.use('/api', formRouter);
 
+// Mount login/user router (contains /login and /user endpoints)
+const loginRouter = require('./login');
+app.use('/api', loginRouter);
+
  
 
 app.post('/api/upload-excel', upload.single('excelFile'), (req, res) => {
@@ -75,33 +79,7 @@ app.post('/api/upload-excel', upload.single('excelFile'), (req, res) => {
         res.status(500).json({ success: false, message: 'Gagal memproses file: ' + e.message });
     }
 });
-app.post('/api/login', (req, res) => {
-    const { username, password } = req.body;
-    db.query('SELECT * FROM users WHERE username = ?', [username], (err, results) => {
-        if (err) {
-            return res.status(500).json({ success: false, message: 'Server error' });
-        }
-        if (results.length === 0) {
-            return res.status(401).json({ success: false, message: 'Username tidak ditemukan' });
-        }
-        const user = results[0];
-        if (user.password.startsWith('$2a$') || user.password.startsWith('$2b$')) {
-            bcrypt.compare(password, user.password, (err, match) => {
-                if (match) {
-                    res.json({ success: true, role: user.role });
-                } else {
-                    res.status(401).json({ success: false, message: 'Password salah' });
-                }
-            });
-        } else {
-            if (user.password === password) {
-                res.json({ success: true, role: user.role });
-            } else {
-                res.status(401).json({ success: false, message: 'Password salah' });
-            }
-        }
-    });
-});
+// NOTE: login routes are handled in `Src/login.js` mounted above
 
 
 app.get('/api/laporan', (req, res) => {
@@ -205,7 +183,8 @@ app.post('/api/send-reminders-for/:id', async (req, res) => {
 });
 
 app.get('/', (req, res) => {
-    res.redirect('/main.html');
+    // Send root visitors to the login page so they must authenticate first
+    res.redirect('/login.html');
 });
 app.listen(PORT, () => {
     console.log(`Dashboard running at http://localhost:${PORT}`);
