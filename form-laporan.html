@@ -20,7 +20,7 @@
                     
                     <input type="text" id="perseroanInput" class="form-control" aria-label="Perseroan (user)">
                     
-                    <select id="perseroanSelect" class="form-select" style="display:none;" required>
+                    <select id="perseroanSelect" class="form-select" style="display:none;">
                         <option value="">-- Pilih Perseroan --</option>
                             <option value="2">PT. Bakrie Sumatera Plantations - Kisaran</option>
                             <option value="3">PT. Grahadura Leidong Prima</option>
@@ -264,8 +264,11 @@
         });
         const result = await response.json();
         if(result.success) {
-            if (msgDiv) msgDiv.innerHTML = '<div class="alert alert-success">Laporan berhasil diupload!</div>';
-            form.reset();
+            try {
+                localStorage.setItem('flashMessage', 'Laporan berhasil disimpan');
+            } catch (e) {}
+            window.location.href = 'main.html';
+            return;
         } else {
             if (msgDiv) msgDiv.innerHTML = '<div class="alert alert-danger">Gagal upload: ' + (result.message || 'Unknown error') + '</div>';
         }

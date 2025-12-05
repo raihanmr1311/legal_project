@@ -5,6 +5,25 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
+// Show one-time flash message set by other pages (e.g. form-laporan.html)
+document.addEventListener('DOMContentLoaded', function() {
+    try {
+        const msg = localStorage.getItem('flashMessage');
+        if (msg) {
+            const container = document.querySelector('.dashboard-card') || document.body;
+            const wrapper = document.createElement('div');
+            wrapper.innerHTML = '<div class="alert alert-success alert-dismissible fade show" role="alert">' +
+                msg +
+                '<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>' +
+                '</div>';
+            container.prepend(wrapper);
+            localStorage.removeItem('flashMessage');
+        }
+    } catch (e) {
+        try { localStorage.removeItem('flashMessage'); } catch (_) {}
+    }
+});
+
 document.addEventListener('DOMContentLoaded', function() {
     var tambahBtn = document.getElementById('tambahLaporanBtn');
     if (tambahBtn) {
@@ -35,6 +54,25 @@ function isAdmin() {
     return getUserRole() === 'admin';
 }
 
+function getUserPerseroanId() {
+    const v = localStorage.getItem('perseroanId');
+    if (!v) return null;
+    return String(v).match(/^\d+$/) ? Number(v) : v;
+}
+
+function isOwner(laporan) {
+    const userPid = getUserPerseroanId();
+    if (!userPid) return false;
+    if (!laporan) return false;
+    if (typeof laporan.perseroan_id !== 'undefined' && laporan.perseroan_id !== null) {
+        return Number(laporan.perseroan_id) === Number(userPid);
+    }
+    if (String(laporan.perseroan).match(/^\d+$/)) {
+        return Number(laporan.perseroan) === Number(userPid);
+    }
+    return false;
+}
+
 function renderTable(data) {
     const tbody = document.querySelector("#laporanTable tbody");
     tbody.innerHTML = '';
@@ -46,8 +84,10 @@ function renderTable(data) {
         const tr = document.createElement("tr");
         const actions = [];
         actions.push('<button class="btn btn-sm btn-info me-1" title="Lihat Detail" onclick="detailLaporan(' + idx + ')"><i class="bi bi-eye"></i></button>');
-        if (isAdmin()) {
+        if (isAdmin() || isOwner(laporan)) {
             actions.push('<button class="btn btn-sm btn-primary me-1" title="Edit" onclick="editLaporan(' + idx + ')"><i class="bi bi-pencil"></i></button>');
+        }
+        if (isAdmin()) {
             actions.push('<button class="btn btn-sm btn-danger" title="Hapus" onclick="hapusLaporan(' + idx + ')"><i class="bi bi-trash"></i></button>');
         }
 
@@ -94,17 +134,21 @@ globalThis.editLaporan = function(idx) {
         });
         return;
     }
-    if (!isAdmin()) {
-        alert('Aksi ini hanya untuk admin.');
-        return;
-    }
     const laporan = filteredData[idx];
     if (!laporan) {
         alert('Data tidak ditemukan!');
         return;
     }
+    if (!isAdmin() && !isOwner(laporan)) {
+        alert('Aksi ini hanya untuk admin atau pemilik perseroan.');
+        return;
+    }
     let html = '';
-    html += '<div class="mb-2"><label class="form-label">Perseroan</label><input type="text" class="form-control" name="perseroan" value="' + (laporan['perseroan'] || '') + '" required></div>';
+    const readonlyPers = (!isAdmin());
+    html += '<div class="mb-2"><label class="form-label">Perseroan</label>' +
+            '<input type="text" class="form-control" name="perseroan" value="' + (laporan['perseroan'] || '') + '" ' + (readonlyPers ? 'readonly' : '') + ' required>' +
+            (laporan.perseroan_id ? ('<input type="hidden" name="perseroan_id" value="' + laporan.perseroan_id + '">') : '') +
+            '</div>';
     html += '<div class="mb-2"><label class="form-label">Jenis Laporan</label><input type="text" class="form-control" name="jenis_laporan" value="' + (laporan['Jenis Laporan'] || laporan['Nama Laporan'] || '') + '" required></div>';
     html += '<div class="mb-2"><label class="form-label">Periode Laporan</label><input type="text" class="form-control" name="periode_laporan" value="' + (laporan['Periode Laporan'] || '') + '" required></div>';
     html += '<div class="mb-2"><label class="form-label">Tahun Laporan</label><input type="text" class="form-control" name="tahun_laporan" value="' + (laporan['Tahun Laporan'] || laporan['Tahun Pelaporan'] || '') + '" required></div>';
@@ -395,6 +439,7 @@ fetch(laporanUrl)
         laporanData = data.map(laporan => ({
             id: laporan.id,
             perseroan: laporan.perseroan || '',
+            perseroan_id: (typeof laporan.perseroan_id !== 'undefined' && laporan.perseroan_id !== null) ? laporan.perseroan_id : (String(laporan.perseroan || '').match(/^\d+$/) ? Number(laporan.perseroan) : null),
             email: laporan.email || '',
             'Jenis Laporan': laporan.jenis_laporan || laporan.nama_laporan || '',
             'File': laporan.file || '',
