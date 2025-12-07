@@ -30,9 +30,11 @@ app.use(bodyParser.json());
 const formRouter = require('./form');
 app.use('/api', formRouter);
 
-// Mount login/user router (contains /login and /user endpoints)
 const loginRouter = require('./login');
 app.use('/api', loginRouter);
+
+const usersRouter = require('./users');
+app.use('/api', usersRouter);
 
  
 
@@ -183,12 +185,15 @@ app.post('/api/send-reminders-for/:id', async (req, res) => {
 });
 
 app.get('/', (req, res) => {
-    // Send root visitors to the login page so they must authenticate first
     res.redirect('/login.html');
 });
+
+app.use((err, req, res, next) => {
+    console.error('Express error handler:', err && err.stack ? err.stack : err);
+    res.status(500).json({ success: false, message: 'Server error', error: err && err.message ? err.message : String(err) });
+});
+
 app.listen(PORT, () => {
     console.log(`Dashboard running at http://localhost:${PORT}`);
     console.log(`Export Excel: http://localhost:${PORT}/export-xlsx`);
 });
-
- 

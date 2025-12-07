@@ -27,9 +27,25 @@ document.addEventListener('DOMContentLoaded', function() {
 document.addEventListener('DOMContentLoaded', function() {
     var tambahBtn = document.getElementById('tambahLaporanBtn');
     if (tambahBtn) {
-        
         tambahBtn.addEventListener('click', function() {
             window.location.href = 'form-laporan.html';
+        });
+    }
+    
+    const manageUsersBtn = document.getElementById('manageUsersBtn');
+    if (manageUsersBtn) {
+        if (isAdmin()) {
+            manageUsersBtn.style.display = '';
+        }
+        manageUsersBtn.addEventListener('click', function() {
+            window.location.href = 'manage-users.html';
+        });
+    }
+    const profileBtn = document.getElementById('profileBtn');
+    if (profileBtn) {
+        profileBtn.style.display = '';
+        profileBtn.addEventListener('click', function() {
+            window.location.href = 'manage-account.html';
         });
     }
 });
